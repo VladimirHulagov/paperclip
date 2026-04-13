@@ -240,7 +240,9 @@ function CompanyRootRedirect() {
     return <div className="mx-auto max-w-xl py-10 text-sm text-muted-foreground">Loading...</div>;
   }
 
-  const targetCompany = selectedCompany ?? companies[0] ?? null;
+  const activeSelected = selectedCompany?.status !== "archived" ? selectedCompany : null;
+  const activeCompanies = companies.filter((c) => c.status !== "archived");
+  const targetCompany = activeSelected ?? activeCompanies[0] ?? null;
   if (!targetCompany) {
     if (
       shouldRedirectCompanylessRouteToOnboarding({
@@ -264,7 +266,9 @@ function UnprefixedBoardRedirect() {
     return <div className="mx-auto max-w-xl py-10 text-sm text-muted-foreground">Loading...</div>;
   }
 
-  const targetCompany = selectedCompany ?? companies[0] ?? null;
+  const activeSelected = selectedCompany?.status !== "archived" ? selectedCompany : null;
+  const activeCompanies = companies.filter((c) => c.status !== "archived");
+  const targetCompany = activeSelected ?? activeCompanies[0] ?? null;
   if (!targetCompany) {
     if (
       shouldRedirectCompanylessRouteToOnboarding({

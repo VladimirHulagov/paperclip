@@ -109,7 +109,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   );
 
   const selectedCompany = useMemo(
-    () => companies.find((company) => company.id === selectedCompanyId) ?? null,
+    () => companies.find((company) => company.id === selectedCompanyId && company.status !== "archived") ?? null,
     [companies, selectedCompanyId],
   );
 
