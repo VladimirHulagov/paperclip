@@ -1,4 +1,4 @@
-import type { CompanyStatus, PauseReason } from "../constants.js";
+import type { BudgetMetric, CompanyStatus, PauseReason } from "../constants.js";
 
 export interface Company {
   id: string;
@@ -11,6 +11,7 @@ export interface Company {
   issueCounter: number;
   budgetMonthlyCents: number;
   spentMonthlyCents: number;
+  budgetMetric: BudgetMetric;
   requireBoardApprovalForNewAgents: boolean;
   feedbackDataSharingEnabled: boolean;
   feedbackDataSharingConsentAt: Date | null;

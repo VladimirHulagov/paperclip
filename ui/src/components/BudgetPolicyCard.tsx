@@ -18,8 +18,17 @@ function parseDollarInput(value: string) {
   return Math.round(parsed * 100);
 }
 
+function formatTokens(count: number): string {
+  if (count >= 1_000_000_000) return `${(count / 1_000_000_000).toFixed(1)}B`;
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
+  return count.toString();
+}
+
 function windowLabel(windowKind: BudgetPolicySummary["windowKind"]) {
-  return windowKind === "lifetime" ? "Lifetime budget" : "Monthly UTC budget";
+  if (windowKind === "anchor_week") return "Weekly budget (anchor)";
+  if (windowKind === "lifetime") return "Lifetime budget";
+  return "Monthly UTC budget";
 }
 
 function statusTone(status: BudgetPolicySummary["status"]) {
@@ -34,20 +43,35 @@ export function BudgetPolicyCard({
   isSaving,
   compact = false,
   variant = "card",
+  metric,
 }: {
   summary: BudgetPolicySummary;
   onSave?: (amountCents: number) => void;
   isSaving?: boolean;
   compact?: boolean;
   variant?: "card" | "plain";
+  metric?: "billed_cents" | "total_tokens";
 }) {
-  const [draftBudget, setDraftBudget] = useState(centsInputValue(summary.amount));
+  const m = metric ?? summary.metric ?? "billed_cents";
+  const formatAmount = m === "total_tokens"
+    ? (v: number) => formatTokens(v)
+    : formatCents;
+
+  const parseInput = m === "total_tokens"
+    ? (v: string) => { const n = parseInt(v.replace(/,/g, ""), 10); return Number.isFinite(n) && n >= 0 ? n : null; }
+    : parseDollarInput;
+
+  const inputToDraft = m === "total_tokens"
+    ? (v: number) => v.toString()
+    : centsInputValue;
+
+  const [draftBudget, setDraftBudget] = useState(inputToDraft(summary.amount));
 
   useEffect(() => {
-    setDraftBudget(centsInputValue(summary.amount));
-  }, [summary.amount]);
+    setDraftBudget(inputToDraft(summary.amount));
+  }, [summary.amount, m]);
 
-  const parsedDraft = parseDollarInput(draftBudget);
+  const parsedDraft = parseInput(draftBudget);
   const canSave = typeof parsedDraft === "number" && parsedDraft !== summary.amount && Boolean(onSave);
   const progress = summary.amount > 0 ? Math.min(100, summary.utilizationPercent) : 0;
   const StatusIcon = summary.status === "hard_stop" ? ShieldAlert : summary.status === "warning" ? AlertTriangle : Wallet;
@@ -57,7 +81,7 @@ export function BudgetPolicyCard({
     <div className="grid gap-6 sm:grid-cols-2">
       <div>
         <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Observed</div>
-        <div className="mt-2 text-xl font-semibold tabular-nums">{formatCents(summary.observedAmount)}</div>
+        <div className="mt-2 text-xl font-semibold tabular-nums">{formatAmount(summary.observedAmount)}</div>
         <div className="mt-1 text-xs text-muted-foreground">
           {summary.amount > 0 ? `${summary.utilizationPercent}% of limit` : "No cap configured"}
         </div>
@@ -65,7 +89,7 @@ export function BudgetPolicyCard({
       <div>
         <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Budget</div>
         <div className="mt-2 text-xl font-semibold tabular-nums">
-          {summary.amount > 0 ? formatCents(summary.amount) : "Disabled"}
+          {summary.amount > 0 ? formatAmount(summary.amount) : "Disabled"}
         </div>
         <div className="mt-1 text-xs text-muted-foreground">
           Soft alert at {summary.warnPercent}%{summary.paused && summary.pauseReason ? ` · ${summary.pauseReason} pause` : ""}
@@ -76,7 +100,7 @@ export function BudgetPolicyCard({
     <div className="grid gap-3 sm:grid-cols-2">
       <div className="rounded-xl border border-border/70 bg-black/[0.18] px-4 py-3">
         <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Observed</div>
-        <div className="mt-2 text-xl font-semibold tabular-nums">{formatCents(summary.observedAmount)}</div>
+        <div className="mt-2 text-xl font-semibold tabular-nums">{formatAmount(summary.observedAmount)}</div>
         <div className="mt-1 text-xs text-muted-foreground">
           {summary.amount > 0 ? `${summary.utilizationPercent}% of limit` : "No cap configured"}
         </div>
@@ -84,7 +108,7 @@ export function BudgetPolicyCard({
       <div className="rounded-xl border border-border/70 bg-black/[0.18] px-4 py-3">
         <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Budget</div>
         <div className="mt-2 text-xl font-semibold tabular-nums">
-          {summary.amount > 0 ? formatCents(summary.amount) : "Disabled"}
+          {summary.amount > 0 ? formatAmount(summary.amount) : "Disabled"}
         </div>
         <div className="mt-1 text-xs text-muted-foreground">
           Soft alert at {summary.warnPercent}%{summary.paused && summary.pauseReason ? ` · ${summary.pauseReason} pause` : ""}
@@ -97,7 +121,7 @@ export function BudgetPolicyCard({
     <div className="space-y-2">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>Remaining</span>
-        <span>{summary.amount > 0 ? formatCents(summary.remainingAmount) : "Unlimited"}</span>
+        <span>{summary.amount > 0 ? formatAmount(summary.remainingAmount) : "Unlimited"}</span>
       </div>
       <div className={cn("h-2 overflow-hidden rounded-full", isPlain ? "bg-border/70" : "bg-muted/70")}>
         <div
@@ -130,14 +154,14 @@ export function BudgetPolicyCard({
     <div className={cn("flex flex-col gap-3 sm:flex-row sm:items-end", isPlain ? "" : "rounded-xl border border-border/70 bg-background/50 p-3")}>
       <div className="min-w-0 flex-1">
         <label className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-          Budget (USD)
+          {m === "total_tokens" ? "Budget (tokens)" : "Budget (USD)"}
         </label>
         <Input
           value={draftBudget}
           onChange={(event) => setDraftBudget(event.target.value)}
           className="mt-2"
-          inputMode="decimal"
-          placeholder="0.00"
+          inputMode={m === "total_tokens" ? "numeric" : "decimal"}
+          placeholder={m === "total_tokens" ? "0" : "0.00"}
         />
       </div>
       <Button
@@ -182,7 +206,7 @@ export function BudgetPolicyCard({
         {pausedPane}
         {saveSection}
         {parsedDraft === null ? (
-          <p className="text-xs text-destructive">Enter a valid non-negative dollar amount.</p>
+          <p className="text-xs text-destructive">Enter a valid non-negative {m === "total_tokens" ? "token" : "dollar"} amount.</p>
         ) : null}
       </div>
     );
@@ -211,7 +235,7 @@ export function BudgetPolicyCard({
         {pausedPane}
         {saveSection}
         {parsedDraft === null ? (
-          <p className="text-xs text-destructive">Enter a valid non-negative dollar amount.</p>
+          <p className="text-xs text-destructive">Enter a valid non-negative {m === "total_tokens" ? "token" : "dollar"} amount.</p>
         ) : null}
       </CardContent>
     </Card>

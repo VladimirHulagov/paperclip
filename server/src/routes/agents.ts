@@ -1508,6 +1508,11 @@ export function agentRoutes(db: Db) {
     );
 
     if (agent.budgetMonthlyCents > 0) {
+      const companyRow = await db
+        .select({ budgetMetric: companies.budgetMetric })
+        .from(companies)
+        .where(eq(companies.id, companyId))
+        .then((rows) => rows[0]);
       await budgets.upsertPolicy(
         companyId,
         {
@@ -1515,6 +1520,7 @@ export function agentRoutes(db: Db) {
           scopeId: agent.id,
           amount: agent.budgetMonthlyCents,
           windowKind: "calendar_month_utc",
+          metric: (companyRow as any)?.budgetMetric ?? "billed_cents",
         },
         actor.actorType === "user" ? actor.actorId : null,
       );

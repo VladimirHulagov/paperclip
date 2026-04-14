@@ -26,6 +26,9 @@ export interface CostSummary {
   spendCents: number;
   budgetCents: number;
   utilizationPercent: number;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
 }
 
 export interface CostByAgent {

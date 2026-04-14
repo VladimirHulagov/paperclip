@@ -619,7 +619,7 @@ export function AgentDetail() {
     tab?: string;
     runId?: string;
   }>();
-  const { companies, selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { companies, selectedCompanyId, selectedCompany, setSelectedCompanyId } = useCompany();
   const { closePanel } = usePanel();
   const { openNewIssue } = useDialog();
   const { setBreadcrumbs } = useBreadcrumbs();
@@ -706,7 +706,7 @@ export function AgentDetail() {
       scopeType: "agent",
       scopeId: agent?.id ?? routeAgentRef,
       scopeName: agent?.name ?? "Agent",
-      metric: "billed_cents",
+      metric: selectedCompany?.budgetMetric ?? "billed_cents",
       windowKind: "calendar_month_utc",
       amount: budgetMonthlyCents,
       observedAmount: spentMonthlyCents,
@@ -1140,6 +1140,7 @@ export function AgentDetail() {
         <div className="max-w-3xl">
           <BudgetPolicyCard
             summary={agentBudgetSummary}
+            metric={agentBudgetSummary?.metric}
             isSaving={budgetMutation.isPending}
             onSave={(amount) => budgetMutation.mutate(amount)}
             variant="plain"

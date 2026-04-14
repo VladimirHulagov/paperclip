@@ -11,6 +11,7 @@ export const upsertBudgetPolicySchema = z.object({
   scopeId: z.string().uuid(),
   metric: z.enum(BUDGET_METRICS).optional().default("billed_cents"),
   windowKind: z.enum(BUDGET_WINDOW_KINDS).optional().default("calendar_month_utc"),
+  anchorTs: z.string().datetime().optional(),
   amount: z.number().int().nonnegative(),
   warnPercent: z.number().int().min(1).max(99).optional().default(80),
   hardStopEnabled: z.boolean().optional().default(true),

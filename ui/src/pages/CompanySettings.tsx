@@ -104,6 +104,18 @@ export function CompanySettings() {
     },
   });
 
+  const budgetMetricMutation = useMutation({
+    mutationFn: (metric: string) =>
+      companiesApi.update(selectedCompanyId!, { budgetMetric: metric as "billed_cents" | "total_tokens" }),
+    onSuccess: () => {
+      pushToast({ tone: "success", title: "Budget metric updated" });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companies.detail(selectedCompanyId!) });
+    },
+    onError: (err) => {
+      pushToast({ tone: "error", title: "Failed to update", body: err instanceof Error ? err.message : "Unknown error" });
+    },
+  });
+
   const inviteMutation = useMutation({
     mutationFn: () =>
       accessApi.createOpenClawInvitePrompt(selectedCompanyId!),
@@ -413,6 +425,38 @@ export function CompanySettings() {
             onChange={(v) => settingsMutation.mutate(v)}
             toggleTestId="company-settings-team-approval-toggle"
           />
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Budget Tracking
+        </div>
+        <div className="rounded-md border border-border px-4 py-3">
+          <div className="text-sm font-medium">Track budget by</div>
+          <div className="mt-2 flex gap-2">
+            <Button
+              size="sm"
+              variant={selectedCompany.budgetMetric === "billed_cents" || !selectedCompany.budgetMetric ? "default" : "outline"}
+              onClick={() => budgetMetricMutation.mutate("billed_cents")}
+              disabled={budgetMetricMutation.isPending}
+            >
+              Dollars ($)
+            </Button>
+            <Button
+              size="sm"
+              variant={selectedCompany.budgetMetric === "total_tokens" ? "default" : "outline"}
+              onClick={() => budgetMetricMutation.mutate("total_tokens")}
+              disabled={budgetMetricMutation.isPending}
+            >
+              Tokens
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {selectedCompany.budgetMetric === "total_tokens"
+              ? "Budgets are tracked in total tokens (input + output). Useful for subscription plans."
+              : "Budgets are tracked in US dollars based on provider billing."}
+          </p>
         </div>
       </div>
 

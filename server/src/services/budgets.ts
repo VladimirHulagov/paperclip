@@ -52,12 +52,19 @@ function currentUtcMonthWindow(now = new Date()) {
   return { start, end };
 }
 
-function resolveWindow(windowKind: BudgetWindowKind, now = new Date()) {
+function resolveWindow(windowKind: BudgetWindowKind, anchorTs?: Date | null, now = new Date()) {
   if (windowKind === "lifetime") {
     return {
       start: new Date(Date.UTC(1970, 0, 1, 0, 0, 0, 0)),
       end: new Date(Date.UTC(9999, 0, 1, 0, 0, 0, 0)),
     };
+  }
+  if (windowKind === "anchor_week" && anchorTs) {
+    const weekMs = 7 * 86400_000;
+    const elapsed = now.getTime() - anchorTs.getTime();
+    const weeksElapsed = Math.max(0, Math.floor(elapsed / weekMs));
+    const start = new Date(anchorTs.getTime() + weeksElapsed * weekMs);
+    return { start, end: new Date(start.getTime() + weekMs) };
   }
   return currentUtcMonthWindow(now);
 }
@@ -141,23 +148,24 @@ async function resolveScopeRecord(db: Db, scopeType: BudgetScopeType, scopeId: s
 
 async function computeObservedAmount(
   db: Db,
-  policy: Pick<PolicyRow, "companyId" | "scopeType" | "scopeId" | "windowKind" | "metric">,
+  policy: Pick<PolicyRow, "companyId" | "scopeType" | "scopeId" | "windowKind" | "metric" | "anchorTs">,
 ) {
-  if (policy.metric !== "billed_cents") return 0;
-
   const conditions = [eq(costEvents.companyId, policy.companyId)];
   if (policy.scopeType === "agent") conditions.push(eq(costEvents.agentId, policy.scopeId));
   if (policy.scopeType === "project") conditions.push(eq(costEvents.projectId, policy.scopeId));
-  const { start, end } = resolveWindow(policy.windowKind as BudgetWindowKind);
-  if (policy.windowKind === "calendar_month_utc") {
-    conditions.push(gte(costEvents.occurredAt, start));
-    conditions.push(lt(costEvents.occurredAt, end));
+  const { start, end } = resolveWindow(policy.windowKind as BudgetWindowKind, policy.anchorTs);
+  conditions.push(gte(costEvents.occurredAt, start));
+  conditions.push(lt(costEvents.occurredAt, end));
+
+  let sumExpr;
+  if (policy.metric === "total_tokens") {
+    sumExpr = sql<number>`coalesce(sum(${costEvents.inputTokens} + ${costEvents.outputTokens}), 0)::bigint`;
+  } else {
+    sumExpr = sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`;
   }
 
   const [row] = await db
-    .select({
-      total: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
-    })
+    .select({ total: sumExpr })
     .from(costEvents)
     .where(and(...conditions));
 
@@ -316,7 +324,7 @@ export function budgetService(db: Db, hooks: BudgetServiceHooks = {}) {
   async function buildPolicySummary(policy: PolicyRow): Promise<BudgetPolicySummary> {
     const scope = await resolveScopeRecord(db, policy.scopeType as BudgetScopeType, policy.scopeId);
     const observedAmount = await computeObservedAmount(db, policy);
-    const { start, end } = resolveWindow(policy.windowKind as BudgetWindowKind);
+    const { start, end } = resolveWindow(policy.windowKind as BudgetWindowKind, policy.anchorTs);
     const amount = policy.isActive ? policy.amount : 0;
     const utilizationPercent =
       amount > 0 ? Number(((observedAmount / amount) * 100).toFixed(2)) : 0;
@@ -351,7 +359,7 @@ export function budgetService(db: Db, hooks: BudgetServiceHooks = {}) {
     thresholdType: BudgetThresholdType,
     amountObserved: number,
   ) {
-    const { start, end } = resolveWindow(policy.windowKind as BudgetWindowKind);
+    const { start, end } = resolveWindow(policy.windowKind as BudgetWindowKind, policy.anchorTs);
     const existing = await db
       .select()
       .from(budgetIncidents)
@@ -541,6 +549,7 @@ export function budgetService(db: Db, hooks: BudgetServiceHooks = {}) {
             hardStopEnabled: input.hardStopEnabled ?? existing.hardStopEnabled,
             notifyEnabled: input.notifyEnabled ?? existing.notifyEnabled,
             isActive: nextIsActive,
+            ...(input.anchorTs ? { anchorTs: new Date(input.anchorTs) } : {}),
             updatedByUserId: actorUserId,
             updatedAt: now,
           })
@@ -560,6 +569,7 @@ export function budgetService(db: Db, hooks: BudgetServiceHooks = {}) {
             hardStopEnabled: input.hardStopEnabled ?? true,
             notifyEnabled: input.notifyEnabled ?? true,
             isActive: nextIsActive,
+            anchorTs: input.anchorTs ? new Date(input.anchorTs) : null,
             createdByUserId: actorUserId,
             updatedByUserId: actorUserId,
           })
@@ -664,7 +674,7 @@ export function budgetService(db: Db, hooks: BudgetServiceHooks = {}) {
       });
 
       for (const policy of relevantPolicies) {
-        if (policy.metric !== "billed_cents" || policy.amount <= 0) continue;
+        if (policy.amount <= 0) continue;
         const observedAmount = await computeObservedAmount(db, policy);
         const softThreshold = Math.ceil((policy.amount * policy.warnPercent) / 100);
 
@@ -761,7 +771,7 @@ export function budgetService(db: Db, hooks: BudgetServiceHooks = {}) {
             eq(budgetPolicies.scopeType, "company"),
             eq(budgetPolicies.scopeId, companyId),
             eq(budgetPolicies.isActive, true),
-            eq(budgetPolicies.metric, "billed_cents"),
+            inArray(budgetPolicies.metric, ["billed_cents", "total_tokens"]),
           ),
         )
         .then((rows) => rows[0] ?? null);
@@ -795,7 +805,7 @@ export function budgetService(db: Db, hooks: BudgetServiceHooks = {}) {
             eq(budgetPolicies.scopeType, "agent"),
             eq(budgetPolicies.scopeId, agentId),
             eq(budgetPolicies.isActive, true),
-            eq(budgetPolicies.metric, "billed_cents"),
+            inArray(budgetPolicies.metric, ["billed_cents", "total_tokens"]),
           ),
         )
         .then((rows) => rows[0] ?? null);
@@ -836,7 +846,7 @@ export function budgetService(db: Db, hooks: BudgetServiceHooks = {}) {
             eq(budgetPolicies.scopeType, "project"),
             eq(budgetPolicies.scopeId, project.id),
             eq(budgetPolicies.isActive, true),
-            eq(budgetPolicies.metric, "billed_cents"),
+            inArray(budgetPolicies.metric, ["billed_cents", "total_tokens"]),
           ),
         )
         .then((rows) => rows[0] ?? null);
@@ -953,6 +963,18 @@ export function budgetService(db: Db, hooks: BudgetServiceHooks = {}) {
         updatedAt: new Date(),
       }]);
       return updated!;
+    },
+
+    migratePoliciesMetric: async (companyId: string, newMetric: BudgetMetric) => {
+      await db
+        .update(budgetPolicies)
+        .set({ metric: newMetric, updatedAt: new Date() })
+        .where(
+          and(
+            eq(budgetPolicies.companyId, companyId),
+            ne(budgetPolicies.metric, newMetric),
+          ),
+        );
     },
   };
 }

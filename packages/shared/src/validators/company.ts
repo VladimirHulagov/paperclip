@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { COMPANY_STATUSES } from "../constants.js";
+import { BUDGET_METRICS, COMPANY_STATUSES } from "../constants.js";
 
 const logoAssetIdSchema = z.string().uuid().nullable().optional();
 const brandColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional();
@@ -25,6 +25,7 @@ export const updateCompanySchema = createCompanySchema
     feedbackDataSharingTermsVersion: feedbackDataSharingTermsVersionSchema,
     brandColor: brandColorSchema,
     logoAssetId: logoAssetIdSchema,
+    budgetMetric: z.enum(BUDGET_METRICS).optional(),
   });
 
 export type UpdateCompany = z.infer<typeof updateCompanySchema>;

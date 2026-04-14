@@ -33,6 +33,7 @@ interface ProviderQuotaCardProps {
   quotaError?: string | null;
   quotaSource?: string | null;
   quotaLoading?: boolean;
+  isTokens?: boolean;
 }
 
 export function ProviderQuotaCard({
@@ -47,6 +48,7 @@ export function ProviderQuotaCard({
   quotaError = null,
   quotaSource = null,
   quotaLoading = false,
+  isTokens = false,
 }: ProviderQuotaCardProps) {
   // single-pass aggregation over rows — memoized so the 8 derived values are not
   // recomputed on every parent render tick (providers tab polls every 30s, and each
@@ -77,6 +79,7 @@ export function ProviderQuotaCard({
       totalSubInputTokens: subInputTokens,
       totalSubOutputTokens: subOutputTokens,
       totalSubTokens: subTokens,
+      allTokens,
       subSharePct: allTokens > 0 ? (subTokens / allTokens) * 100 : 0,
     };
   }, [rows]);
@@ -91,6 +94,7 @@ export function ProviderQuotaCard({
     totalSubInputTokens,
     totalSubOutputTokens,
     totalSubTokens,
+    allTokens,
     subSharePct,
   } = totals;
 
@@ -153,7 +157,7 @@ export function ProviderQuotaCard({
             </CardDescription>
           </div>
           <span className="text-xl font-bold tabular-nums shrink-0">
-            {formatCents(totalCostCents)}
+            {isTokens ? formatTokens(allTokens) : formatCents(totalCostCents)}
           </span>
         </div>
       </CardHeader>
@@ -164,15 +168,15 @@ export function ProviderQuotaCard({
             <QuotaBar
               label="Period spend"
               percentUsed={budgetPct}
-              leftLabel={formatCents(totalCostCents)}
+              leftLabel={isTokens ? formatTokens(allTokens) : formatCents(totalCostCents)}
               rightLabel={`${Math.round(budgetPct)}% of allocation`}
               showDeficitNotch={showDeficitNotch}
             />
             <QuotaBar
               label="This week"
               percentUsed={weekPct}
-              leftLabel={formatCents(weekSpendCents)}
-              rightLabel={`~${formatCents(Math.round(weeklyBudgetShare))} / wk`}
+              leftLabel={isTokens ? formatTokens(weekSpendCents) : formatCents(weekSpendCents)}
+              rightLabel={isTokens ? `~${formatTokens(Math.round(weeklyBudgetShare))} / wk` : `~${formatCents(Math.round(weeklyBudgetShare))} / wk`}
               showDeficitNotch={weekPct >= 100}
             />
           </div>
@@ -201,7 +205,7 @@ export function ProviderQuotaCard({
                         <span className="text-muted-foreground font-mono flex-1">
                           {formatTokens(tokens)} tok
                         </span>
-                        <span className="font-medium tabular-nums">{formatCents(cents)}</span>
+                        <span className="font-medium tabular-nums">{isTokens ? formatTokens(tokens) : formatCents(cents)}</span>
                       </div>
                       <div className="h-2 w-full border border-border overflow-hidden">
                         <div
@@ -280,7 +284,7 @@ export function ProviderQuotaCard({
                         <span className="text-muted-foreground">
                           {formatTokens(rowTokens)} tok
                         </span>
-                        <span className="font-medium">{formatCents(row.costCents)}</span>
+                        <span className="font-medium">{isTokens ? formatTokens(rowTokens) : formatCents(row.costCents)}</span>
                       </div>
                     </div>
                     {/* token share bar */}

@@ -109,9 +109,12 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
       if (range?.from) conditions.push(gte(costEvents.occurredAt, range.from));
       if (range?.to) conditions.push(lte(costEvents.occurredAt, range.to));
 
-      const [{ total }] = await db
+      const [{ total, totalInputTokens, totalCachedInputTokens, totalOutputTokens }] = await db
         .select({
           total: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
+          totalInputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`,
+          totalCachedInputTokens: sql<number>`coalesce(sum(${costEvents.cachedInputTokens}), 0)::int`,
+          totalOutputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`,
         })
         .from(costEvents)
         .where(and(...conditions));
@@ -127,6 +130,9 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
         spendCents,
         budgetCents: company.budgetMonthlyCents,
         utilizationPercent: Number(utilization.toFixed(2)),
+        inputTokens: Number(totalInputTokens),
+        cachedInputTokens: Number(totalCachedInputTokens),
+        outputTokens: Number(totalOutputTokens),
       };
     },
 

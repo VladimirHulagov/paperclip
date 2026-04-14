@@ -221,7 +221,12 @@ export function costRoutes(db: Db) {
       assertBoard(req);
       const companyId = req.params.companyId as string;
       assertCompanyAccess(req, companyId);
-      const summary = await budgets.upsertPolicy(companyId, req.body, req.actor.userId ?? "board");
+      const companyRow = await companies.getById(companyId);
+      const input = {
+        ...req.body,
+        metric: req.body.metric ?? (companyRow as any)?.budgetMetric ?? "billed_cents",
+      };
+      const summary = await budgets.upsertPolicy(companyId, input, req.actor.userId ?? "board");
       res.json(summary);
     },
   );
@@ -267,6 +272,7 @@ export function costRoutes(db: Db) {
       details: { budgetMonthlyCents: req.body.budgetMonthlyCents },
     });
 
+    const companyMetric = (company as any).budgetMetric ?? "billed_cents";
     await budgets.upsertPolicy(
       companyId,
       {
@@ -274,6 +280,7 @@ export function costRoutes(db: Db) {
         scopeId: companyId,
         amount: req.body.budgetMonthlyCents,
         windowKind: "calendar_month_utc",
+        metric: companyMetric,
       },
       req.actor.userId ?? "board",
     );
@@ -323,6 +330,7 @@ export function costRoutes(db: Db) {
         scopeId: updated.id,
         amount: updated.budgetMonthlyCents,
         windowKind: "calendar_month_utc",
+        metric: ((await companies.getById(updated.companyId)) as any)?.budgetMetric ?? "billed_cents",
       },
       req.actor.type === "board" ? req.actor.userId ?? "board" : null,
     );

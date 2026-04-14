@@ -90,6 +90,7 @@ export interface BudgetPolicyUpsertInput {
   hardStopEnabled?: boolean;
   notifyEnabled?: boolean;
   isActive?: boolean;
+  anchorTs?: string;
 }
 
 export interface BudgetIncidentResolutionInput {

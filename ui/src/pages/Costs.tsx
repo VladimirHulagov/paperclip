@@ -44,26 +44,26 @@ function currentWeekRange(): { from: string; to: string } {
   return { from: mon.toISOString(), to: sun.toISOString() };
 }
 
-function ProviderTabLabel({ provider, rows }: { provider: string; rows: CostByProviderModel[] }) {
+function ProviderTabLabel({ provider, rows, isTokens }: { provider: string; rows: CostByProviderModel[]; isTokens?: boolean }) {
   const totalTokens = rows.reduce((sum, row) => sum + row.inputTokens + row.cachedInputTokens + row.outputTokens, 0);
   const totalCost = rows.reduce((sum, row) => sum + row.costCents, 0);
   return (
     <span className="flex items-center gap-1.5">
       <span>{providerDisplayName(provider)}</span>
       <span className="font-mono text-xs text-muted-foreground">{formatTokens(totalTokens)}</span>
-      <span className="text-xs text-muted-foreground">{formatCents(totalCost)}</span>
+      {!isTokens && <span className="text-xs text-muted-foreground">{formatCents(totalCost)}</span>}
     </span>
   );
 }
 
-function BillerTabLabel({ biller, rows }: { biller: string; rows: CostByBiller[] }) {
+function BillerTabLabel({ biller, rows, isTokens }: { biller: string; rows: CostByBiller[]; isTokens?: boolean }) {
   const totalTokens = rows.reduce((sum, row) => sum + row.inputTokens + row.cachedInputTokens + row.outputTokens, 0);
   const totalCost = rows.reduce((sum, row) => sum + row.costCents, 0);
   return (
     <span className="flex items-center gap-1.5">
       <span>{providerDisplayName(biller)}</span>
       <span className="font-mono text-xs text-muted-foreground">{formatTokens(totalTokens)}</span>
-      <span className="text-xs text-muted-foreground">{formatCents(totalCost)}</span>
+      {!isTokens && <span className="text-xs text-muted-foreground">{formatCents(totalCost)}</span>}
     </span>
   );
 }
@@ -147,9 +147,10 @@ function FinanceSummaryCard({
 }
 
 export function Costs() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedCompanyId, selectedCompany } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
+  const isTokens = selectedCompany?.budgetMetric === "total_tokens";
 
   const [mainTab, setMainTab] = useState<"overview" | "budgets" | "providers" | "billers" | "finance">("overview");
   const [activeProvider, setActiveProvider] = useState("all");
@@ -476,7 +477,7 @@ export function Costs() {
       },
       ...providerKeys.map((provider) => ({
         value: provider,
-        label: <ProviderTabLabel provider={provider} rows={byProvider.get(provider) ?? []} />,
+        label: <ProviderTabLabel provider={provider} rows={byProvider.get(provider) ?? []} isTokens={isTokens} />,
       })),
     ];
   }, [byProvider]);
@@ -508,7 +509,7 @@ export function Costs() {
       },
       ...billerKeys.map((biller) => ({
         value: biller,
-        label: <BillerTabLabel biller={biller} rows={byBiller.get(biller) ?? []} />,
+        label: <BillerTabLabel biller={biller} rows={byBiller.get(biller) ?? []} isTokens={isTokens} />,
       })),
     ];
   }, [byBiller]);
@@ -581,8 +582,10 @@ export function Costs() {
 
           <div className="grid gap-3 lg:grid-cols-4">
             <MetricTile
-              label="Inference spend"
-              value={formatCents(spendData?.summary.spendCents ?? 0)}
+              label={isTokens ? "Inference usage" : "Inference spend"}
+              value={isTokens
+                ? formatTokens(spendData?.summary.inputTokens ?? 0 + (spendData?.summary.cachedInputTokens ?? 0) + (spendData?.summary.outputTokens ?? 0))
+                : formatCents(spendData?.summary.spendCents ?? 0)}
               subtitle={`${formatTokens(inferenceTokenTotal)} tokens across request-scoped events`}
               icon={DollarSign}
             />
@@ -597,7 +600,9 @@ export function Costs() {
                 activeBudgetIncidents.length > 0
                   ? `${budgetData?.pausedAgentCount ?? 0} agents paused · ${budgetData?.pausedProjectCount ?? 0} projects paused`
                   : spendData?.summary.budgetCents && spendData.summary.budgetCents > 0
-                    ? `${formatCents(spendData.summary.spendCents)} of ${formatCents(spendData.summary.budgetCents)}`
+                    ? isTokens
+                      ? `${formatTokens(spendData.summary.spendCents)} of ${formatTokens(spendData.summary.budgetCents)}`
+                      : `${formatCents(spendData.summary.spendCents)} of ${formatCents(spendData.summary.budgetCents)}`
                     : "No monthly cap configured"
               }
               icon={Coins}
@@ -666,20 +671,28 @@ export function Costs() {
                     <div className="flex flex-wrap items-end justify-between gap-3">
                       <div>
                         <div className="text-3xl font-semibold tabular-nums">
-                          {formatCents(spendData?.summary.spendCents ?? 0)}
+                          {isTokens
+                            ? formatTokens(inferenceTokenTotal)
+                            : formatCents(spendData?.summary.spendCents ?? 0)}
                         </div>
                         <div className="mt-1 text-sm text-muted-foreground">
-                          {spendData?.summary.budgetCents && spendData.summary.budgetCents > 0
-                            ? `Budget ${formatCents(spendData.summary.budgetCents)}`
-                            : "Unlimited budget"}
+                          {isTokens
+                            ? (spendData?.summary.budgetCents && spendData.summary.budgetCents > 0
+                              ? `Budget ${formatTokens(spendData.summary.budgetCents)}`
+                              : "Unlimited budget")
+                            : (spendData?.summary.budgetCents && spendData.summary.budgetCents > 0
+                              ? `Budget ${formatCents(spendData.summary.budgetCents)}`
+                              : "Unlimited budget")}
                         </div>
                       </div>
-                      <div className="border border-border px-4 py-3 text-right">
-                        <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">usage</div>
-                        <div className="mt-1 text-lg font-medium tabular-nums">
-                          {formatTokens(inferenceTokenTotal)}
+                      {!isTokens && (
+                        <div className="border border-border px-4 py-3 text-right">
+                          <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">usage</div>
+                          <div className="mt-1 text-lg font-medium tabular-nums">
+                            {formatTokens(inferenceTokenTotal)}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                     {spendData?.summary.budgetCents && spendData.summary.budgetCents > 0 ? (
                       <div className="space-y-2">
@@ -745,7 +758,9 @@ export function Costs() {
                                 {row.agentStatus === "terminated" ? <StatusBadge status="terminated" /> : null}
                               </div>
                               <div className="text-right text-sm tabular-nums">
-                                <div className="font-medium">{formatCents(row.costCents)}</div>
+                                <div className="font-medium">{isTokens
+                                  ? formatTokens(row.inputTokens + row.cachedInputTokens + row.outputTokens)
+                                  : formatCents(row.costCents)}</div>
                                 <div className="text-xs text-muted-foreground">
                                   in {formatTokens(row.inputTokens + row.cachedInputTokens)} · out {formatTokens(row.outputTokens)}
                                 </div>
@@ -782,12 +797,16 @@ export function Costs() {
                                       </div>
                                       <div className="text-right tabular-nums">
                                         <div className="font-medium">
-                                          {formatCents(modelRow.costCents)}
+                                          {isTokens
+                                            ? formatTokens(modelRow.inputTokens + modelRow.cachedInputTokens + modelRow.outputTokens)
+                                            : formatCents(modelRow.costCents)}
                                           <span className="ml-1 font-normal text-muted-foreground">({sharePct}%)</span>
                                         </div>
-                                        <div className="text-muted-foreground">
-                                          {formatTokens(modelRow.inputTokens + modelRow.cachedInputTokens + modelRow.outputTokens)} tok
-                                        </div>
+                                        {!isTokens && (
+                                          <div className="text-muted-foreground">
+                                            {formatTokens(modelRow.inputTokens + modelRow.cachedInputTokens + modelRow.outputTokens)} tok
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   );
@@ -817,7 +836,9 @@ export function Costs() {
                             className="flex items-center justify-between gap-3 border border-border px-3 py-2 text-sm"
                           >
                             <span className="truncate">{row.projectName ?? row.projectId ?? "Unattributed"}</span>
-                            <span className="font-medium tabular-nums">{formatCents(row.costCents)}</span>
+                            <span className="font-medium tabular-nums">{isTokens
+                              ? formatTokens(row.inputTokens + row.cachedInputTokens + row.outputTokens)
+                              : formatCents(row.costCents)}</span>
                           </div>
                         ))
                       )}
@@ -921,6 +942,7 @@ export function Costs() {
                           <BudgetPolicyCard
                             key={summary.policyId}
                             summary={summary}
+                            metric={summary.metric}
                             isSaving={policyMutation.isPending}
                             onSave={(amount) =>
                               policyMutation.mutate({
@@ -975,6 +997,7 @@ export function Costs() {
                           quotaError={quotaErrorsByProvider.get(provider) ?? null}
                           quotaSource={quotaSourcesByProvider.get(provider) ?? null}
                           quotaLoading={quotaLoading}
+                          isTokens={isTokens}
                         />
                       ))}
                     </div>
@@ -995,6 +1018,7 @@ export function Costs() {
                       quotaError={quotaErrorsByProvider.get(provider) ?? null}
                       quotaSource={quotaSourcesByProvider.get(provider) ?? null}
                       quotaLoading={quotaLoading}
+                      isTokens={isTokens}
                     />
                   </TabsContent>
                 ))}
@@ -1028,6 +1052,7 @@ export function Costs() {
                             budgetMonthlyCents={spendData?.summary.budgetCents ?? 0}
                             totalCompanySpendCents={spendData?.summary.spendCents ?? 0}
                             providerRows={providerRows}
+                            isTokens={isTokens}
                           />
                         );
                       })}
@@ -1047,6 +1072,7 @@ export function Costs() {
                         budgetMonthlyCents={spendData?.summary.budgetCents ?? 0}
                         totalCompanySpendCents={spendData?.summary.spendCents ?? 0}
                         providerRows={providerRows}
+                        isTokens={isTokens}
                       />
                     </TabsContent>
                   );
