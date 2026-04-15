@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PatchInstanceGeneralSettings, TimeFormat } from "@paperclipai/shared";
-import { Globe, LogOut, SlidersHorizontal } from "lucide-react";
+import type { InstanceMessagingSettings } from "@paperclipai/shared";
+import { Globe, LogOut, MessageSquare, SlidersHorizontal } from "lucide-react";
 import { authApi } from "@/api/auth";
 import { instanceSettingsApi } from "@/api/instanceSettings";
 import { Button } from "../components/ui/button";
@@ -49,6 +50,47 @@ export function InstanceGeneralSettings() {
       setActionError(error instanceof Error ? error.message : "Failed to update general settings.");
     },
   });
+
+  const messagingQuery = useQuery({
+    queryKey: queryKeys.instance.messagingSettings,
+    queryFn: () => instanceSettingsApi.getMessaging(),
+  });
+
+  const updateMessagingMutation = useMutation({
+    mutationFn: instanceSettingsApi.updateMessaging,
+    onSuccess: async () => {
+      setActionError(null);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.instance.messagingSettings });
+    },
+    onError: (error) => {
+      setActionError(error instanceof Error ? error.message : "Failed to update messaging settings.");
+    },
+  });
+
+  const telegram = messagingQuery.data?.telegram;
+  const telegramEnabled = telegram?.enabled === true;
+  const [messagingDraft, setMessagingDraft] = useState<{
+    botToken: string;
+    chatId: string;
+    allowedUsers: string;
+    defaultTimeout: number;
+  }>({
+    botToken: "",
+    chatId: "",
+    allowedUsers: "",
+    defaultTimeout: 600,
+  });
+
+  useEffect(() => {
+    if (messagingQuery.data?.telegram) {
+      setMessagingDraft({
+        botToken: messagingQuery.data.telegram.botToken ?? "",
+        chatId: messagingQuery.data.telegram.chatId ?? "",
+        allowedUsers: messagingQuery.data.telegram.allowedUsers ?? "",
+        defaultTimeout: messagingQuery.data.telegram.defaultTimeout ?? 600,
+      });
+    }
+  }, [messagingQuery.data]);
 
   if (generalQuery.isLoading) {
     return <div className="text-sm text-muted-foreground">Loading general settings...</div>;
@@ -277,6 +319,141 @@ export function InstanceGeneralSettings() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-5">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold">Messaging</h2>
+            </div>
+            <ToggleSwitch
+              checked={telegramEnabled}
+              onCheckedChange={() =>
+                updateMessagingMutation.mutate({
+                  telegram: {
+                    enabled: !telegramEnabled,
+                    botToken: telegram?.botToken,
+                    chatId: telegram?.chatId,
+                    allowedUsers: telegram?.allowedUsers,
+                    defaultTimeout: telegram?.defaultTimeout ?? 600,
+                  },
+                })
+              }
+              disabled={updateMessagingMutation.isPending}
+              aria-label="Toggle Telegram Q&A"
+            />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Enable Telegram Q&A to let agents respond to questions via a Telegram bot.
+          </p>
+          {telegramEnabled && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label htmlFor="telegram-bot-token" className="text-sm font-medium">
+                  Bot Token
+                </label>
+                <input
+                  id="telegram-bot-token"
+                  type="password"
+                  placeholder="From @BotFather"
+                  value={messagingDraft.botToken}
+                  disabled={updateMessagingMutation.isPending}
+                  onChange={(e) =>
+                    setMessagingDraft((d) => ({ ...d, botToken: e.target.value }))
+                  }
+                  onBlur={() => {
+                    if (messagingDraft.botToken !== (telegram?.botToken ?? "")) {
+                      updateMessagingMutation.mutate({
+                        telegram: { ...telegram, enabled: true, botToken: messagingDraft.botToken || undefined },
+                      });
+                    }
+                  }}
+                  className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="telegram-chat-id" className="text-sm font-medium">
+                  Chat ID
+                </label>
+                <input
+                  id="telegram-chat-id"
+                  type="text"
+                  placeholder="-1001234567890"
+                  value={messagingDraft.chatId}
+                  disabled={updateMessagingMutation.isPending}
+                  onChange={(e) =>
+                    setMessagingDraft((d) => ({ ...d, chatId: e.target.value }))
+                  }
+                  onBlur={() => {
+                    if (messagingDraft.chatId !== (telegram?.chatId ?? "")) {
+                      updateMessagingMutation.mutate({
+                        telegram: { ...telegram, enabled: true, chatId: messagingDraft.chatId || undefined },
+                      });
+                    }
+                  }}
+                  className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="telegram-allowed-users" className="text-sm font-medium">
+                  Allowed Users
+                </label>
+                <input
+                  id="telegram-allowed-users"
+                  type="text"
+                  placeholder="Comma-separated Telegram user IDs"
+                  value={messagingDraft.allowedUsers}
+                  disabled={updateMessagingMutation.isPending}
+                  onChange={(e) =>
+                    setMessagingDraft((d) => ({ ...d, allowedUsers: e.target.value }))
+                  }
+                  onBlur={() => {
+                    if (messagingDraft.allowedUsers !== (telegram?.allowedUsers ?? "")) {
+                      updateMessagingMutation.mutate({
+                        telegram: { ...telegram, enabled: true, allowedUsers: messagingDraft.allowedUsers || undefined },
+                      });
+                    }
+                  }}
+                  className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="telegram-timeout" className="text-sm font-medium">
+                  Response Timeout (seconds)
+                </label>
+                <input
+                  id="telegram-timeout"
+                  type="number"
+                  min={60}
+                  max={3600}
+                  value={messagingDraft.defaultTimeout}
+                  disabled={updateMessagingMutation.isPending}
+                  onChange={(e) =>
+                    setMessagingDraft((d) => ({
+                      ...d,
+                      defaultTimeout: Math.max(60, Math.min(3600, Number(e.target.value) || 600)),
+                    }))
+                  }
+                  onBlur={() => {
+                    const val = Math.max(60, Math.min(3600, messagingDraft.defaultTimeout));
+                    setMessagingDraft((d) => ({ ...d, defaultTimeout: val }));
+                    if (val !== (telegram?.defaultTimeout ?? 600)) {
+                      updateMessagingMutation.mutate({
+                        telegram: { ...telegram, enabled: true, defaultTimeout: val },
+                      });
+                    }
+                  }}
+                  className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                />
+                <p className="text-xs text-muted-foreground">
+                  How long to wait for an agent response (60–3600 seconds, default 600).
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
