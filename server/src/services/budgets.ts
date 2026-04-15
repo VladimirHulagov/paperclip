@@ -966,15 +966,35 @@ export function budgetService(db: Db, hooks: BudgetServiceHooks = {}) {
     },
 
     migratePoliciesMetric: async (companyId: string, newMetric: BudgetMetric) => {
-      await db
-        .update(budgetPolicies)
-        .set({ metric: newMetric, updatedAt: new Date() })
-        .where(
-          and(
-            eq(budgetPolicies.companyId, companyId),
-            ne(budgetPolicies.metric, newMetric),
-          ),
-        );
+      const oldMetric: BudgetMetric = newMetric === "total_tokens" ? "billed_cents" : "total_tokens";
+      const oldRows = await db
+        .select({ id: budgetPolicies.id, scopeType: budgetPolicies.scopeType, scopeId: budgetPolicies.scopeId, windowKind: budgetPolicies.windowKind })
+        .from(budgetPolicies)
+        .where(and(eq(budgetPolicies.companyId, companyId), eq(budgetPolicies.metric, oldMetric)));
+
+      if (oldRows.length === 0) return;
+
+      const newRows = await db
+        .select({ scopeType: budgetPolicies.scopeType, scopeId: budgetPolicies.scopeId, windowKind: budgetPolicies.windowKind })
+        .from(budgetPolicies)
+        .where(and(eq(budgetPolicies.companyId, companyId), eq(budgetPolicies.metric, newMetric)));
+
+      const newSet = new Set(newRows.map((r) => `${r.scopeType}:${r.scopeId}:${r.windowKind}`));
+      const toMigrate = oldRows.filter((r) => !newSet.has(`${r.scopeType}:${r.scopeId}:${r.windowKind}`));
+      const toDeactivate = oldRows.filter((r) => newSet.has(`${r.scopeType}:${r.scopeId}:${r.windowKind}`));
+
+      if (toMigrate.length > 0) {
+        await db
+          .update(budgetPolicies)
+          .set({ metric: newMetric, updatedAt: new Date() })
+          .where(inArray(budgetPolicies.id, toMigrate.map((r) => r.id)));
+      }
+      if (toDeactivate.length > 0) {
+        await db
+          .update(budgetPolicies)
+          .set({ isActive: false, amount: 0, updatedAt: new Date() })
+          .where(inArray(budgetPolicies.id, toDeactivate.map((r) => r.id)));
+      }
     },
   };
 }

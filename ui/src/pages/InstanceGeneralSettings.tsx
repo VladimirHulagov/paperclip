@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { PatchInstanceGeneralSettings } from "@paperclipai/shared";
-import { LogOut, SlidersHorizontal } from "lucide-react";
+import type { PatchInstanceGeneralSettings, TimeFormat } from "@paperclipai/shared";
+import { Globe, LogOut, SlidersHorizontal } from "lucide-react";
 import { authApi } from "@/api/auth";
 import { instanceSettingsApi } from "@/api/instanceSettings";
 import { Button } from "../components/ui/button";
@@ -67,6 +67,8 @@ export function InstanceGeneralSettings() {
   const censorUsernameInLogs = generalQuery.data?.censorUsernameInLogs === true;
   const keyboardShortcuts = generalQuery.data?.keyboardShortcuts === true;
   const feedbackDataSharingPreference = generalQuery.data?.feedbackDataSharingPreference ?? "prompt";
+  const currentTimezone = generalQuery.data?.timezone ?? "UTC";
+  const currentTimeFormat: TimeFormat = generalQuery.data?.timeFormat ?? "24h";
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -196,6 +198,85 @@ export function InstanceGeneralSettings() {
             <code>"prompt"</code>. Unset and <code>"prompt"</code> both mean no default has been
             chosen yet.
           </p>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-5">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">Regional</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Timezone and time format apply to all timestamps across the instance.
+          </p>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label htmlFor="timezone-select" className="text-sm font-medium">
+                Timezone
+              </label>
+              <select
+                id="timezone-select"
+                value={currentTimezone}
+                disabled={updateGeneralMutation.isPending}
+                onChange={(e) => updateGeneralMutation.mutate({ timezone: e.target.value })}
+                className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {[
+                  "UTC",
+                  "US/Eastern",
+                  "US/Central",
+                  "US/Mountain",
+                  "US/Pacific",
+                  "Canada/Atlantic",
+                  "America/Sao_Paulo",
+                  "Europe/London",
+                  "Europe/Paris",
+                  "Europe/Berlin",
+                  "Europe/Moscow",
+                  "Europe/Istanbul",
+                  "Asia/Dubai",
+                  "Asia/Kolkata",
+                  "Asia/Bangkok",
+                  "Asia/Shanghai",
+                  "Asia/Tokyo",
+                  "Asia/Seoul",
+                  "Australia/Sydney",
+                  "Pacific/Auckland",
+                ].map((tz) => (
+                  <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-sm font-medium">Time format</span>
+              <div className="flex gap-2">
+                {([
+                  { value: "24h" as TimeFormat, label: "24-hour", example: "15:42" },
+                  { value: "12h" as TimeFormat, label: "12-hour", example: "3:42 PM" },
+                ]).map((opt) => {
+                  const active = currentTimeFormat === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={updateGeneralMutation.isPending}
+                      className={cn(
+                        "rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                        active
+                          ? "border-foreground bg-accent text-foreground"
+                          : "border-border bg-background hover:bg-accent/50",
+                      )}
+                      onClick={() => updateGeneralMutation.mutate({ timeFormat: opt.value })}
+                    >
+                      <div className="text-sm font-medium">{opt.label}</div>
+                      <div className="text-xs text-muted-foreground">{opt.example}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

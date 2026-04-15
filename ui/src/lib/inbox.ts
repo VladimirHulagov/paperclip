@@ -343,6 +343,7 @@ export function computeInboxBadgeData({
   heartbeatRuns,
   mineIssues,
   dismissed,
+  terminatedAgentIds,
 }: {
   approvals: Approval[];
   joinRequests: JoinRequest[];
@@ -350,6 +351,7 @@ export function computeInboxBadgeData({
   heartbeatRuns: HeartbeatRun[];
   mineIssues: Issue[];
   dismissed: Set<string>;
+  terminatedAgentIds: Set<string>;
 }): InboxBadgeData {
   const actionableApprovals = approvals.filter(
     (approval) =>
@@ -357,12 +359,12 @@ export function computeInboxBadgeData({
       !dismissed.has(`approval:${approval.id}`),
   ).length;
   const failedRuns = getLatestFailedRunsByAgent(heartbeatRuns).filter(
-    (run) => !dismissed.has(`run:${run.id}`),
+    (run) => !dismissed.has(`run:${run.id}`) && !terminatedAgentIds.has(run.agentId),
   ).length;
   const visibleJoinRequests = joinRequests.filter(
     (jr) => !dismissed.has(`join:${jr.id}`),
   ).length;
-  const visibleMineIssues = mineIssues.length;
+  const visibleMineIssues = mineIssues.filter((i) => i.isUnreadForMe).length;
   const agentErrorCount = dashboard?.agents.error ?? 0;
   const monthBudgetCents = dashboard?.costs.monthBudgetCents ?? 0;
   const monthUtilizationPercent = dashboard?.costs.monthUtilizationPercent ?? 0;

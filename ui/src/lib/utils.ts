@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { deriveAgentUrlKey, deriveProjectUrlKey, normalizeProjectUrlKey, hasNonAsciiContent } from "@paperclipai/shared";
-import type { BillingType, FinanceDirection, FinanceEventKind } from "@paperclipai/shared";
+import type { BillingType, FinanceDirection, FinanceEventKind, TimeFormat } from "@paperclipai/shared";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -11,21 +11,27 @@ export function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-export function formatDate(date: Date | string): string {
+export function formatDate(date: Date | string, opts?: { timezone?: string }): string {
   return new Date(date).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
+    ...(opts?.timezone ? { timeZone: opts.timezone } : {}),
   });
 }
 
-export function formatDateTime(date: Date | string): string {
+export function formatDateTime(
+  date: Date | string,
+  opts?: { timezone?: string; timeFormat?: TimeFormat },
+): string {
   return new Date(date).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    ...(opts?.timezone ? { timeZone: opts.timezone } : {}),
+    ...(opts?.timeFormat === "24h" ? { hour12: false } : opts?.timeFormat === "12h" ? { hour12: true } : {}),
   });
 }
 

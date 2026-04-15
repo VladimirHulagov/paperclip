@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { accessApi } from "../api/access";
+import { agentsApi } from "../api/agents";
 import { ApiError } from "../api/client";
 import { approvalsApi } from "../api/approvals";
 import { dashboardApi } from "../api/dashboard";
@@ -126,6 +127,17 @@ export function useInboxBadge(companyId: string | null | undefined) {
     enabled: !!companyId,
   });
 
+  const { data: agents = [] } = useQuery({
+    queryKey: queryKeys.agents.list(companyId!),
+    queryFn: () => agentsApi.list(companyId!),
+    enabled: !!companyId,
+  });
+
+  const terminatedAgentIds = useMemo(
+    () => new Set(agents.filter((a) => a.status === "terminated").map((a) => a.id)),
+    [agents],
+  );
+
   return useMemo(
     () =>
       computeInboxBadgeData({
@@ -135,7 +147,8 @@ export function useInboxBadge(companyId: string | null | undefined) {
         heartbeatRuns,
         mineIssues,
         dismissed,
+        terminatedAgentIds,
       }),
-    [approvals, joinRequests, dashboard, heartbeatRuns, mineIssues, dismissed],
+    [approvals, joinRequests, dashboard, heartbeatRuns, mineIssues, dismissed, terminatedAgentIds],
   );
 }

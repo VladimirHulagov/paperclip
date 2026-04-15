@@ -693,36 +693,37 @@ export function AgentDetail() {
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   const reportsToAgent = (allAgents ?? []).find((a) => a.id === agent?.reportsTo);
   const directReports = (allAgents ?? []).filter((a) => a.reportsTo === agent?.id && a.status !== "terminated");
-  const agentBudgetSummary = useMemo(() => {
-    const matched = budgetOverview?.policies.find(
-      (policy) => policy.scopeType === "agent" && policy.scopeId === (agent?.id ?? routeAgentRef),
-    );
-    if (matched) return matched;
-    const budgetMonthlyCents = agent?.budgetMonthlyCents ?? 0;
-    const spentMonthlyCents = agent?.spentMonthlyCents ?? 0;
-    return {
-      policyId: "",
-      companyId: resolvedCompanyId ?? "",
-      scopeType: "agent",
-      scopeId: agent?.id ?? routeAgentRef,
-      scopeName: agent?.name ?? "Agent",
-      metric: selectedCompany?.budgetMetric ?? "billed_cents",
-      windowKind: "calendar_month_utc",
-      amount: budgetMonthlyCents,
-      observedAmount: spentMonthlyCents,
-      remainingAmount: Math.max(0, budgetMonthlyCents - spentMonthlyCents),
-      utilizationPercent:
-        budgetMonthlyCents > 0 ? Number(((spentMonthlyCents / budgetMonthlyCents) * 100).toFixed(2)) : 0,
-      warnPercent: 80,
-      hardStopEnabled: true,
-      notifyEnabled: true,
-      isActive: budgetMonthlyCents > 0,
-      status: budgetMonthlyCents > 0 && spentMonthlyCents >= budgetMonthlyCents ? "hard_stop" : "ok",
-      paused: agent?.status === "paused",
-      pauseReason: agent?.pauseReason ?? null,
-      windowStart: new Date(),
-      windowEnd: new Date(),
-    } satisfies BudgetPolicySummary;
+  const agentBudgetSummaries = useMemo(() => {
+    const agentId = agent?.id ?? routeAgentRef;
+    const ALL_METRICS: ("billed_cents" | "total_tokens")[] = ["billed_cents", "total_tokens"];
+    return ALL_METRICS.map((metric) => {
+      const matched = budgetOverview?.policies.find(
+        (policy) => policy.scopeType === "agent" && policy.scopeId === agentId && policy.metric === metric,
+      );
+      if (matched) return matched;
+      return {
+        policyId: "",
+        companyId: resolvedCompanyId ?? "",
+        scopeType: "agent",
+        scopeId: agentId,
+        scopeName: agent?.name ?? "Agent",
+        metric,
+        windowKind: "calendar_month_utc",
+        amount: 0,
+        observedAmount: 0,
+        remainingAmount: 0,
+        utilizationPercent: 0,
+        warnPercent: 80,
+        hardStopEnabled: true,
+        notifyEnabled: true,
+        isActive: false,
+        status: "ok" as const,
+        paused: agent?.status === "paused",
+        pauseReason: agent?.pauseReason ?? null,
+        windowStart: new Date(),
+        windowEnd: new Date(),
+      } satisfies BudgetPolicySummary;
+    });
   }, [agent, budgetOverview?.policies, resolvedCompanyId, routeAgentRef]);
   const mobileLiveRun = useMemo(
     () => (heartbeats ?? []).find((r) => r.status === "running" || r.status === "queued") ?? null,
@@ -792,12 +793,13 @@ export function AgentDetail() {
   });
 
   const budgetMutation = useMutation({
-    mutationFn: (amount: number) =>
+    mutationFn: ({ amount, metric }: { amount: number; metric: "billed_cents" | "total_tokens" }) =>
       budgetsApi.upsertPolicy(resolvedCompanyId!, {
         scopeType: "agent",
         scopeId: agent?.id ?? routeAgentRef,
         amount,
         windowKind: "calendar_month_utc",
+        metric,
       }),
     onSuccess: () => {
       if (!resolvedCompanyId) return;
@@ -860,7 +862,7 @@ export function AgentDetail() {
       crumbs.push({ label: agentName, href: `/agents/${canonicalAgentRef}/dashboard` });
       if (urlRunId) {
         crumbs.push({ label: "Runs", href: `/agents/${canonicalAgentRef}/runs` });
-        crumbs.push({ label: `Run ${urlRunId.slice(0, 8)}` });
+        crumbs.push({ label: `Run ${urlRunId}` });
       } else if (activeView === "instructions") {
         crumbs.push({ label: "Instructions" });
       } else if (activeView === "configuration") {
@@ -1090,6 +1092,7 @@ export function AgentDetail() {
           runtimeState={runtimeState}
           agentId={agent.id}
           agentRouteId={canonicalAgentRef}
+          isTokens={selectedCompany?.budgetMetric === "total_tokens"}
         />
       )}
 
@@ -1133,18 +1136,22 @@ export function AgentDetail() {
           selectedRunId={urlRunId ?? null}
           adapterType={agent.adapterType}
           adapterConfig={agent.adapterConfig}
+          assignedIssues={assignedIssues}
         />
       )}
 
       {activeView === "budget" && resolvedCompanyId ? (
-        <div className="max-w-3xl">
-          <BudgetPolicyCard
-            summary={agentBudgetSummary}
-            metric={agentBudgetSummary?.metric}
-            isSaving={budgetMutation.isPending}
-            onSave={(amount) => budgetMutation.mutate(amount)}
-            variant="plain"
-          />
+        <div className="max-w-3xl space-y-4">
+          {agentBudgetSummaries.map((summary) => (
+            <BudgetPolicyCard
+              key={summary.metric}
+              summary={summary}
+              metric={summary.metric}
+              isSaving={budgetMutation.isPending}
+              onSave={(amount) => budgetMutation.mutate({ amount, metric: summary.metric })}
+              variant="plain"
+            />
+          ))}
         </div>
       ) : null}
     </div>
@@ -1226,7 +1233,7 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
         <div className="flex items-center gap-2">
           <StatusIcon className={cn("h-3.5 w-3.5", statusInfo.color, run.status === "running" && "animate-spin")} />
           <StatusBadge status={run.status} />
-          <span className="font-mono text-xs text-muted-foreground">{run.id.slice(0, 8)}</span>
+          <span className="font-mono text-xs text-muted-foreground">{run.id}</span>
           <span className={cn(
             "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium",
             run.invocationSource === "timer" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
@@ -1258,6 +1265,7 @@ function AgentOverview({
   runtimeState,
   agentId,
   agentRouteId,
+  isTokens,
 }: {
   agent: AgentDetailRecord;
   runs: HeartbeatRun[];
@@ -1265,6 +1273,7 @@ function AgentOverview({
   runtimeState?: AgentRuntimeState;
   agentId: string;
   agentRouteId: string;
+  isTokens?: boolean;
 }) {
   return (
     <div className="space-y-8">
@@ -1323,7 +1332,7 @@ function AgentOverview({
       {/* Costs */}
       <div className="space-y-3">
         <h3 className="text-sm font-medium">Costs</h3>
-        <CostsSection runtimeState={runtimeState} runs={runs} />
+        <CostsSection runtimeState={runtimeState} runs={runs} isTokens={isTokens} />
       </div>
     </div>
   );
@@ -1334,9 +1343,11 @@ function AgentOverview({
 function CostsSection({
   runtimeState,
   runs,
+  isTokens,
 }: {
   runtimeState?: AgentRuntimeState;
   runs: HeartbeatRun[];
+  isTokens?: boolean;
 }) {
   const runsWithCost = runs
     .filter((r) => {
@@ -1363,8 +1374,10 @@ function CostsSection({
               <span className="text-lg font-semibold">{formatTokens(runtimeState.totalCachedInputTokens)}</span>
             </div>
             <div>
-              <span className="text-xs text-muted-foreground block">Total cost</span>
-              <span className="text-lg font-semibold">{formatCents(runtimeState.totalCostCents)}</span>
+              <span className="text-xs text-muted-foreground block">{isTokens ? "Total tokens" : "Total cost"}</span>
+              <span className="text-lg font-semibold">{isTokens
+                ? formatTokens(runtimeState.totalInputTokens + runtimeState.totalOutputTokens)
+                : formatCents(runtimeState.totalCostCents)}</span>
             </div>
           </div>
         </div>
@@ -1387,7 +1400,7 @@ function CostsSection({
                 return (
                   <tr key={run.id} className="border-b border-border last:border-b-0">
                     <td className="px-3 py-2">{formatDate(run.createdAt)}</td>
-                    <td className="px-3 py-2 font-mono">{run.id.slice(0, 8)}</td>
+                    <td className="px-3 py-2 font-mono">{run.id}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatTokens(metrics.input)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatTokens(metrics.output)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">
@@ -2629,7 +2642,7 @@ function AgentSkillsTab({
         ) : null}
       </div>
 
-      {skillSnapshot?.warnings.length ? (
+      {skillSnapshot?.warnings?.length ? (
         <div className="space-y-1 rounded-xl border border-amber-300/60 bg-amber-50/60 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/20 dark:text-amber-200">
           {skillSnapshot.warnings.map((warning) => (
             <div key={warning}>{warning}</div>
@@ -2847,7 +2860,7 @@ function RunListItem({ run, isSelected, agentId }: { run: HeartbeatRun; isSelect
       <div className="flex items-center gap-2">
         <StatusIcon className={cn("h-3.5 w-3.5 shrink-0", statusInfo.color, run.status === "running" && "animate-spin")} />
         <span className="font-mono text-xs text-muted-foreground">
-          {run.id.slice(0, 8)}
+          {run.id}
         </span>
         <span className={cn(
           "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0",
@@ -2885,6 +2898,7 @@ function RunsTab({
   selectedRunId,
   adapterType,
   adapterConfig,
+  assignedIssues,
 }: {
   runs: HeartbeatRun[];
   companyId: string;
@@ -2893,6 +2907,7 @@ function RunsTab({
   selectedRunId: string | null;
   adapterType: string;
   adapterConfig: Record<string, unknown>;
+  assignedIssues: { id: string; title: string; status: string; priority: string; identifier?: string | null; createdAt: Date }[];
 }) {
   const { isMobile } = useSidebar();
 
@@ -2919,9 +2934,9 @@ function RunsTab({
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors no-underline"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Back to runs
+            {"Back to runs"}
           </Link>
-          <RunDetail key={selectedRun.id} run={selectedRun} agentRouteId={agentRouteId} adapterType={adapterType} adapterConfig={adapterConfig} />
+          <RunDetail key={selectedRun.id} run={selectedRun} agentRouteId={agentRouteId} adapterType={adapterType} adapterConfig={adapterConfig} assignedIssues={assignedIssues} />
         </div>
       );
     }
@@ -2952,7 +2967,7 @@ function RunsTab({
       {/* Right: run detail — natural height, page scrolls */}
       {selectedRun && (
         <div className="flex-1 min-w-0 pl-4">
-          <RunDetail key={selectedRun.id} run={selectedRun} agentRouteId={agentRouteId} adapterType={adapterType} adapterConfig={adapterConfig} />
+          <RunDetail key={selectedRun.id} run={selectedRun} agentRouteId={agentRouteId} adapterType={adapterType} adapterConfig={adapterConfig} assignedIssues={assignedIssues} />
         </div>
       )}
     </div>
@@ -2961,7 +2976,7 @@ function RunsTab({
 
 /* ---- Run Detail (expanded) ---- */
 
-function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }: { run: HeartbeatRun; agentRouteId: string; adapterType: string; adapterConfig: Record<string, unknown> }) {
+function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig, assignedIssues }: { run: HeartbeatRun; agentRouteId: string; adapterType: string; adapterConfig: Record<string, unknown>; assignedIssues: { id: string; title: string; status: string; priority: string; identifier?: string | null; createdAt: Date }[] }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { data: hydratedRun } = useQuery({
@@ -3109,6 +3124,19 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
   const sessionChanged = run.sessionIdBefore && run.sessionIdAfter && run.sessionIdBefore !== run.sessionIdAfter;
   const sessionId = run.sessionIdAfter || run.sessionIdBefore;
   const hasNonZeroExit = run.exitCode !== null && run.exitCode !== 0;
+  const ctxIssueId = asNonEmptyString(asRecord(run.contextSnapshot)?.issueId);
+  const primaryIssueId = ctxIssueId
+    ?? (assignedIssues.find((i) => i.status === "in_progress")?.id ?? null)
+    ?? null;
+  const primaryIssue = primaryIssueId
+    ? (() => {
+        const fromTouched = (touchedIssues ?? []).find((issue) => issue.issueId === primaryIssueId);
+        if (fromTouched) return fromTouched;
+        const fromAssigned = assignedIssues.find((i) => i.id === primaryIssueId);
+        if (fromAssigned) return { issueId: fromAssigned.id, identifier: fromAssigned.identifier ?? null, title: fromAssigned.title, status: fromAssigned.status, priority: fromAssigned.priority };
+        return null;
+      })()
+    : null;
 
   return (
     <div className="space-y-4 min-w-0">
@@ -3288,6 +3316,22 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
           )}
         </div>
 
+        {/* Task row */}
+        {primaryIssueId && (
+          <div className="border-t border-border">
+            <Link
+              to={`/issues/${primaryIssue?.identifier ?? primaryIssueId}`}
+              className="flex items-center justify-between gap-2 w-full px-4 py-2 text-xs hover:bg-accent/20 transition-colors no-underline text-inherit"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <StatusBadge status={primaryIssue?.status ?? "open"} />
+                <span className="font-mono text-muted-foreground shrink-0">{primaryIssue?.identifier ?? primaryIssueId.slice(0, 8)}</span>
+                <span className="truncate">{primaryIssue?.title ?? "Issue"}</span>
+              </div>
+            </Link>
+          </div>
+        )}
+
         {/* Collapsible session row */}
         {hasSession && (
           <div className="border-t border-border">
@@ -3404,6 +3448,7 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
   const [isFollowing, setIsFollowing] = useState(false);
   const [isStreamingConnected, setIsStreamingConnected] = useState(false);
   const [transcriptMode, setTranscriptMode] = useState<TranscriptMode>("nice");
+  const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set());
   const logEndRef = useRef<HTMLDivElement>(null);
   const pendingLogLineRef = useRef("");
   const scrollContainerRef = useRef<ScrollContainer | null>(null);
@@ -3782,6 +3827,7 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
 
   useEffect(() => {
     setTranscriptMode("nice");
+    setHiddenTypes(new Set());
   }, [run.id]);
 
   if (loading && logLoading) {
@@ -3814,11 +3860,44 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
         <RunInvocationCard payload={adapterInvokePayload} censorUsernameInLogs={censorUsernameInLogs} />
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-medium text-muted-foreground">
           Transcript ({transcript.length})
         </span>
         <div className="flex items-center gap-2">
+          {transcriptMode === "nice" && (
+            <div className="inline-flex rounded-lg border border-border/70 bg-background/70 p-0.5">
+              {([
+                { key: "assistant", label: "ASSISTANT" },
+                { key: "thinking", label: "THINKING" },
+                { key: "system_group", label: "SYSTEM" },
+              ] as const).map((toggle) => {
+                const active = !hiddenTypes.has(toggle.key);
+                return (
+                  <button
+                    key={toggle.key}
+                    type="button"
+                    className={cn(
+                      "rounded-md px-2 py-1 text-[10px] font-semibold tracking-[0.12em] transition-colors",
+                      active
+                        ? "bg-accent text-foreground shadow-sm"
+                        : "text-muted-foreground/50 hover:text-muted-foreground",
+                    )}
+                    onClick={() => {
+                      setHiddenTypes((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(toggle.key)) next.delete(toggle.key);
+                        else next.add(toggle.key);
+                        return next;
+                      });
+                    }}
+                  >
+                    {toggle.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="inline-flex rounded-lg border border-border/70 bg-background/70 p-0.5">
             {(["nice", "raw"] as const).map((mode) => (
               <button
@@ -3867,6 +3946,7 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
           entries={transcript}
           mode={transcriptMode}
           streaming={isLive}
+          hiddenTypes={hiddenTypes}
           emptyMessage={run.logRef ? "Waiting for transcript..." : "No persisted transcript for this run."}
         />
         {logError && (

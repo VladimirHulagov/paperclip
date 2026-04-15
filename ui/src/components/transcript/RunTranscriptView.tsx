@@ -3,6 +3,7 @@ import type { TranscriptEntry } from "../../adapters";
 import { MarkdownBody } from "../MarkdownBody";
 import { cn, formatTokens } from "../../lib/utils";
 import {
+  Brain,
   Check,
   ChevronDown,
   ChevronRight,
@@ -26,6 +27,7 @@ interface RunTranscriptViewProps {
   emptyMessage?: string;
   className?: string;
   thinkingClassName?: string;
+  hiddenTypes?: Set<string>;
 }
 
 type TranscriptBlock =
@@ -126,6 +128,18 @@ type TranscriptBlock =
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
+}
+
+function formatHHMMSS(ts: string): string {
+  try {
+    const d = new Date(ts);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    const ss = String(d.getSeconds()).padStart(2, "0");
+    return `${hh}:${mm}:${ss}`;
+  } catch {
+    return "";
+  }
 }
 
 function compactWhitespace(value: string): string {
@@ -631,9 +645,11 @@ export function normalizeTranscript(entries: TranscriptEntry[], streaming: boole
 function TranscriptMessageBlock({
   block,
   density,
+  showTimestamps,
 }: {
   block: Extract<TranscriptBlock, { type: "message" }>;
   density: TranscriptDensity;
+  showTimestamps?: boolean;
 }) {
   const isAssistant = block.role === "assistant";
   const compact = density === "compact";
@@ -644,6 +660,16 @@ function TranscriptMessageBlock({
         <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           <User className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
           <span>User</span>
+          {showTimestamps && block.ts && (
+            <span className="font-mono text-[10px] font-normal normal-case tracking-normal text-muted-foreground/60">
+              {formatHHMMSS(block.ts)}
+            </span>
+          )}
+        </div>
+      )}
+      {isAssistant && showTimestamps && block.ts && (
+        <div className="mb-1 font-mono text-[10px] text-muted-foreground/50">
+          {formatHHMMSS(block.ts)}
         </div>
       )}
       <MarkdownBody
@@ -671,21 +697,33 @@ function TranscriptThinkingBlock({
   block,
   density,
   className,
+  showTimestamps,
 }: {
   block: Extract<TranscriptBlock, { type: "thinking" }>;
   density: TranscriptDensity;
   className?: string;
+  showTimestamps?: boolean;
 }) {
   return (
-    <MarkdownBody
-      className={cn(
-        "italic text-foreground/70 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-        density === "compact" ? "text-[11px] leading-5" : "text-sm leading-6",
-        className,
-      )}
-    >
-      {block.text}
-    </MarkdownBody>
+    <div>
+      <div className="mb-1 flex items-center gap-1.5 text-muted-foreground/50">
+        <Brain className="h-3 w-3" />
+        {showTimestamps && block.ts && (
+          <span className="font-mono text-[10px]">
+            {formatHHMMSS(block.ts)}
+          </span>
+        )}
+      </div>
+      <MarkdownBody
+        className={cn(
+          "italic text-foreground/70 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+          density === "compact" ? "text-[11px] leading-5" : "text-sm leading-6",
+          className,
+        )}
+      >
+        {block.text}
+      </MarkdownBody>
+    </div>
   );
 }
 
@@ -1395,9 +1433,21 @@ export function RunTranscriptView({
   emptyMessage = "No transcript yet.",
   className,
   thinkingClassName,
+  hiddenTypes,
 }: RunTranscriptViewProps) {
   const blocks = useMemo(() => normalizeTranscript(entries, streaming), [entries, streaming]);
-  const visibleBlocks = limit ? blocks.slice(-limit) : blocks;
+  const showTimestamps = true;
+
+  const typeHidden = (type: string, role?: string): boolean => {
+    if (!hiddenTypes || hiddenTypes.size === 0) return false;
+    if (type === "message" && role === "assistant") return hiddenTypes.has("assistant");
+    if (type === "message" && role === "user") return hiddenTypes.has("user");
+    return hiddenTypes.has(type);
+  };
+
+  const visibleBlocks = (limit ? blocks.slice(-limit) : blocks).filter(
+    (b) => !typeHidden(b.type, b.type === "message" ? (b as Extract<TranscriptBlock, { type: "message" }>).role : undefined),
+  );
   const visibleEntries = limit ? entries.slice(-limit) : entries;
 
   if (entries.length === 0) {
@@ -1423,9 +1473,9 @@ export function RunTranscriptView({
           key={`${block.type}-${block.ts}-${index}`}
           className={cn(index === visibleBlocks.length - 1 && streaming && "animate-in fade-in slide-in-from-bottom-1 duration-300")}
         >
-          {block.type === "message" && <TranscriptMessageBlock block={block} density={density} />}
+          {block.type === "message" && <TranscriptMessageBlock block={block} density={density} showTimestamps={showTimestamps} />}
           {block.type === "thinking" && (
-            <TranscriptThinkingBlock block={block} density={density} className={thinkingClassName} />
+            <TranscriptThinkingBlock block={block} density={density} className={thinkingClassName} showTimestamps={showTimestamps} />
           )}
           {block.type === "tool" && <TranscriptToolCard block={block} density={density} />}
           {block.type === "command_group" && <TranscriptCommandGroup block={block} density={density} />}

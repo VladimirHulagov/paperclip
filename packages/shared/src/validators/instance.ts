@@ -8,6 +8,8 @@ export const instanceGeneralSettingsSchema = z.object({
   feedbackDataSharingPreference: feedbackDataSharingPreferenceSchema.default(
     DEFAULT_FEEDBACK_DATA_SHARING_PREFERENCE,
   ),
+  timezone: z.string().default("UTC"),
+  timeFormat: z.enum(["12h", "24h"]).default("24h"),
 }).strict();
 
 export const patchInstanceGeneralSettingsSchema = instanceGeneralSettingsSchema.partial();

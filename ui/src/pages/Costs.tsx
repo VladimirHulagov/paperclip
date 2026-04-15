@@ -214,12 +214,14 @@ export function Costs() {
       scopeId: string;
       amount: number;
       windowKind: BudgetPolicySummary["windowKind"];
+      metric: "billed_cents" | "total_tokens";
     }) =>
       budgetsApi.upsertPolicy(companyId, {
         scopeType: input.scopeType,
         scopeId: input.scopeId,
         amount: input.amount,
         windowKind: input.windowKind,
+        metric: input.metric,
       }),
     onSuccess: invalidateBudgetViews,
   });
@@ -469,7 +471,7 @@ export function Costs() {
             {providerKeys.length > 0 ? (
               <>
                 <span className="font-mono text-xs text-muted-foreground">{formatTokens(allTokens)}</span>
-                <span className="text-xs text-muted-foreground">{formatCents(allCents)}</span>
+                {!isTokens && <span className="text-xs text-muted-foreground">{formatCents(allCents)}</span>}
               </>
             ) : null}
           </span>
@@ -501,7 +503,7 @@ export function Costs() {
             {billerKeys.length > 0 ? (
               <>
                 <span className="font-mono text-xs text-muted-foreground">{formatTokens(allTokens)}</span>
-                <span className="text-xs text-muted-foreground">{formatCents(allCents)}</span>
+                {!isTokens && <span className="text-xs text-muted-foreground">{formatCents(allCents)}</span>}
               </>
             ) : null}
           </span>
@@ -528,6 +530,27 @@ export function Costs() {
     agent: budgetPolicies.filter((policy) => policy.scopeType === "agent"),
     project: budgetPolicies.filter((policy) => policy.scopeType === "project"),
   }), [budgetPolicies]);
+
+  const budgetScopeGroups = useMemo(() => {
+    const ALL_METRICS: ("billed_cents" | "total_tokens")[] = ["billed_cents", "total_tokens"];
+    const groups: { scopeType: "company" | "agent" | "project"; scopeId: string; scopeName: string; policies: Map<string, BudgetPolicySummary> }[] = [];
+    const seen = new Set<string>();
+    for (const policy of budgetPolicies) {
+      const key = `${policy.scopeType}:${policy.scopeId}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        const policyMap = new Map<string, BudgetPolicySummary>();
+        for (const m of ALL_METRICS) {
+          const found = budgetPolicies.find(
+            (p) => p.scopeType === policy.scopeType && p.scopeId === policy.scopeId && p.metric === m,
+          );
+          if (found) policyMap.set(m, found);
+        }
+        groups.push({ scopeType: policy.scopeType, scopeId: policy.scopeId, scopeName: policy.scopeName, policies: policyMap });
+      }
+    }
+    return groups;
+  }, [budgetPolicies]);
 
   if (!selectedCompanyId) {
     return <EmptyState icon={DollarSign} message="Select a company to view costs." />;
@@ -607,18 +630,22 @@ export function Costs() {
               }
               icon={Coins}
             />
-            <MetricTile
-              label="Finance net"
-              value={formatCents(financeData?.summary.netCents ?? 0)}
-              subtitle={`${formatCents(financeData?.summary.debitCents ?? 0)} debits · ${formatCents(financeData?.summary.creditCents ?? 0)} credits`}
-              icon={ReceiptText}
-            />
-            <MetricTile
-              label="Finance events"
-              value={String(financeData?.summary.eventCount ?? 0)}
-              subtitle={`${formatCents(financeData?.summary.estimatedDebitCents ?? 0)} estimated in range`}
-              icon={ArrowUpRight}
-            />
+            {!isTokens && (
+              <MetricTile
+                label="Finance net"
+                value={formatCents(financeData?.summary.netCents ?? 0)}
+                subtitle={`${formatCents(financeData?.summary.debitCents ?? 0)} debits · ${formatCents(financeData?.summary.creditCents ?? 0)} credits`}
+                icon={ReceiptText}
+              />
+            )}
+            {!isTokens && (
+              <MetricTile
+                label="Finance events"
+                value={String(financeData?.summary.eventCount ?? 0)}
+                subtitle={`${formatCents(financeData?.summary.estimatedDebitCents ?? 0)} estimated in range`}
+                icon={ArrowUpRight}
+              />
+            )}
           </div>
       </div>
 
@@ -659,7 +686,7 @@ export function Costs() {
                 </div>
               ) : null}
 
-              <div className="grid gap-4 xl:grid-cols-[1.3fr,1fr]">
+              <div className={isTokens ? "space-y-4" : "grid gap-4 xl:grid-cols-[1.3fr,1fr]"}>
                 <Card>
                   <CardHeader className="px-5 pt-5 pb-2">
                     <CardTitle className="text-base">Inference ledger</CardTitle>
@@ -717,13 +744,15 @@ export function Costs() {
                   </CardContent>
                 </Card>
 
-                <FinanceSummaryCard
-                  debitCents={financeData?.summary.debitCents ?? 0}
-                  creditCents={financeData?.summary.creditCents ?? 0}
-                  netCents={financeData?.summary.netCents ?? 0}
-                  estimatedDebitCents={financeData?.summary.estimatedDebitCents ?? 0}
-                  eventCount={financeData?.summary.eventCount ?? 0}
-                />
+                {!isTokens && (
+                  <FinanceSummaryCard
+                    debitCents={financeData?.summary.debitCents ?? 0}
+                    creditCents={financeData?.summary.creditCents ?? 0}
+                    netCents={financeData?.summary.netCents ?? 0}
+                    estimatedDebitCents={financeData?.summary.estimatedDebitCents ?? 0}
+                    eventCount={financeData?.summary.eventCount ?? 0}
+                  />
+                )}
               </div>
 
               <div className="grid gap-4 xl:grid-cols-[1.25fr,0.95fr]">
@@ -923,8 +952,8 @@ export function Costs() {
 
               <div className="space-y-5">
                 {(["company", "agent", "project"] as const).map((scopeType) => {
-                  const rows = budgetPoliciesByScope[scopeType];
-                  if (rows.length === 0) return null;
+                  const scopeGroups = budgetScopeGroups.filter((g) => g.scopeType === scopeType);
+                  if (scopeGroups.length === 0) return null;
                   return (
                     <section key={scopeType} className="space-y-3">
                       <div>
@@ -937,23 +966,33 @@ export function Costs() {
                               : "Lifetime spend policies for execution-bound projects."}
                         </p>
                       </div>
-                      <div className="grid gap-4 xl:grid-cols-2">
-                        {rows.map((summary) => (
-                          <BudgetPolicyCard
-                            key={summary.policyId}
-                            summary={summary}
-                            metric={summary.metric}
-                            isSaving={policyMutation.isPending}
-                            onSave={(amount) =>
-                              policyMutation.mutate({
-                                scopeType: summary.scopeType,
-                                scopeId: summary.scopeId,
-                                amount,
-                                windowKind: summary.windowKind,
-                              })}
-                          />
-                        ))}
-                      </div>
+                      {scopeGroups.map((group) => (
+                        <div key={group.scopeId} className="space-y-1">
+                          <div className="text-sm font-medium text-muted-foreground">{group.scopeName}</div>
+                          <div className="grid gap-4 xl:grid-cols-2">
+                            {(["billed_cents", "total_tokens"] as const).map((metric) => {
+                              const summary = group.policies.get(metric);
+                              if (!summary) return null;
+                              return (
+                                <BudgetPolicyCard
+                                  key={summary.policyId}
+                                  summary={summary}
+                                  metric={metric}
+                                  isSaving={policyMutation.isPending}
+                                  onSave={(amount) =>
+                                    policyMutation.mutate({
+                                      scopeType: group.scopeType,
+                                      scopeId: group.scopeId,
+                                      amount,
+                                      windowKind: summary.windowKind,
+                                      metric,
+                                    })}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </section>
                   );
                 })}
@@ -1083,7 +1122,9 @@ export function Costs() {
         </TabsContent>
 
         <TabsContent value="finance" className="mt-4 space-y-4">
-          {showCustomPrompt ? (
+          {isTokens ? (
+            <p className="text-sm text-muted-foreground">Finance ledger is not applicable in token-budget mode.</p>
+          ) : showCustomPrompt ? (
             <p className="text-sm text-muted-foreground">Select a start and end date to load data.</p>
           ) : financeLoading ? (
             <PageSkeleton variant="costs" />

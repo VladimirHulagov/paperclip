@@ -180,6 +180,7 @@ export type {
   InstanceExperimentalSettings,
   InstanceGeneralSettings,
   InstanceSettings,
+  TimeFormat,
   Agent,
   AgentAccessState,
   AgentChainOfCommandEntry,
