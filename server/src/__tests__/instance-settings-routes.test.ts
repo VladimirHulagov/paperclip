@@ -7,8 +7,10 @@ import { instanceSettingsRoutes } from "../routes/instance-settings.js";
 const mockInstanceSettingsService = vi.hoisted(() => ({
   getGeneral: vi.fn(),
   getExperimental: vi.fn(),
+  getMessaging: vi.fn(),
   updateGeneral: vi.fn(),
   updateExperimental: vi.fn(),
+  updateMessaging: vi.fn(),
   listCompanyIds: vi.fn(),
 }));
 const mockLogActivity = vi.hoisted(() => vi.fn());
@@ -55,6 +57,19 @@ describe("instance settings routes", () => {
       experimental: {
         enableIsolatedWorkspaces: true,
         autoRestartDevServerWhenIdle: false,
+      },
+    });
+    mockInstanceSettingsService.getMessaging.mockResolvedValue({});
+    mockInstanceSettingsService.updateMessaging.mockResolvedValue({
+      id: "instance-settings-1",
+      messaging: {
+        telegram: {
+          enabled: true,
+          botToken: "123456:ABC",
+          chatId: "-1001234567890",
+          allowedUsers: "user1",
+          defaultTimeout: 600,
+        },
       },
     });
     mockInstanceSettingsService.listCompanyIds.mockResolvedValue(["company-1", "company-2"]);
@@ -183,5 +198,81 @@ describe("instance settings routes", () => {
 
     expect(res.status).toBe(403);
     expect(mockInstanceSettingsService.updateGeneral).not.toHaveBeenCalled();
+  });
+
+  it("allows board users to read messaging settings", async () => {
+    const app = createApp({
+      type: "board",
+      userId: "user-1",
+      source: "session",
+      isInstanceAdmin: false,
+      companyIds: ["company-1"],
+    });
+
+    const res = await request(app).get("/api/instance/settings/messaging");
+    expect(res.status).toBe(200);
+    expect(mockInstanceSettingsService.getMessaging).toHaveBeenCalled();
+  });
+
+  it("allows local board users to update messaging settings", async () => {
+    const app = createApp({
+      type: "board",
+      userId: "local-board",
+      source: "local_implicit",
+      isInstanceAdmin: true,
+    });
+
+    const patch = {
+      telegram: {
+        enabled: true,
+        botToken: "123456:ABC",
+        chatId: "-1001234567890",
+        allowedUsers: "user1",
+        defaultTimeout: 600,
+      },
+    };
+
+    const res = await request(app)
+      .patch("/api/instance/settings/messaging")
+      .send(patch);
+
+    expect(res.status).toBe(200);
+    expect(res.body.telegram.enabled).toBe(true);
+    expect(res.body.telegram.botToken).toBe("123456:ABC");
+    expect(mockInstanceSettingsService.updateMessaging).toHaveBeenCalledWith(patch);
+    expect(mockLogActivity).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects non-admin board users from updating messaging settings", async () => {
+    const app = createApp({
+      type: "board",
+      userId: "user-1",
+      source: "session",
+      isInstanceAdmin: false,
+      companyIds: ["company-1"],
+    });
+
+    const res = await request(app)
+      .patch("/api/instance/settings/messaging")
+      .send({ telegram: { enabled: true } });
+
+    expect(res.status).toBe(403);
+    expect(mockInstanceSettingsService.updateMessaging).not.toHaveBeenCalled();
+  });
+
+  it("rejects agent callers from messaging settings", async () => {
+    const app = createApp({
+      type: "agent",
+      agentId: "agent-1",
+      companyId: "company-1",
+      source: "agent_key",
+    });
+
+    const res = await request(app)
+      .patch("/api/instance/settings/messaging")
+      .send({ telegram: { enabled: false } });
+
+    expect(res.status).toBe(403);
+    expect(mockInstanceSettingsService.updateMessaging).not.toHaveBeenCalled();
   });
 });
