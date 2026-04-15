@@ -6,6 +6,8 @@ import {
   type InstanceGeneralSettings,
   instanceExperimentalSettingsSchema,
   type InstanceExperimentalSettings,
+  messagingSettingsSchema,
+  type InstanceMessagingSettings,
   type PatchInstanceGeneralSettings,
   type InstanceSettings,
   type PatchInstanceExperimentalSettings,
@@ -49,11 +51,20 @@ function normalizeExperimentalSettings(raw: unknown): InstanceExperimentalSettin
   };
 }
 
+function normalizeMessagingSettings(raw: unknown): InstanceMessagingSettings {
+  const parsed = messagingSettingsSchema.safeParse(raw ?? {});
+  if (parsed.success) {
+    return parsed.data;
+  }
+  return {};
+}
+
 function toInstanceSettings(row: typeof instanceSettings.$inferSelect): InstanceSettings {
   return {
     id: row.id,
     general: normalizeGeneralSettings(row.general),
     experimental: normalizeExperimentalSettings(row.experimental),
+    messaging: normalizeMessagingSettings(row.messaging),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -131,6 +142,25 @@ export function instanceSettingsService(db: Db) {
         .update(instanceSettings)
         .set({
           experimental: { ...nextExperimental },
+          updatedAt: now,
+        })
+        .where(eq(instanceSettings.id, current.id))
+        .returning();
+      return toInstanceSettings(updated ?? current);
+    },
+
+    getMessaging: async (): Promise<InstanceMessagingSettings> => {
+      const row = await getOrCreateRow();
+      return normalizeMessagingSettings(row.messaging);
+    },
+
+    updateMessaging: async (patch: InstanceMessagingSettings): Promise<InstanceSettings> => {
+      const current = await getOrCreateRow();
+      const now = new Date();
+      const [updated] = await db
+        .update(instanceSettings)
+        .set({
+          messaging: { ...patch },
           updatedAt: now,
         })
         .where(eq(instanceSettings.id, current.id))
