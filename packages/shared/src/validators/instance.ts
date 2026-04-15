@@ -21,6 +21,21 @@ export const instanceExperimentalSettingsSchema = z.object({
 
 export const patchInstanceExperimentalSettingsSchema = instanceExperimentalSettingsSchema.partial();
 
+export const messagingSettingsSchema = z.object({
+  telegram: z.object({
+    enabled: z.boolean().default(false),
+    botToken: z.string().optional(),
+    chatId: z.string().optional(),
+    allowedUsers: z.string().optional(),
+    defaultTimeout: z.number().min(60).max(3600).default(600),
+  }).optional(),
+}).strict();
+
+export const patchMessagingSettingsSchema = messagingSettingsSchema;
+
+export type MessagingSettings = z.infer<typeof messagingSettingsSchema>;
+export type PatchMessagingSettings = z.infer<typeof patchMessagingSettingsSchema>;
+
 export type InstanceGeneralSettings = z.infer<typeof instanceGeneralSettingsSchema>;
 export type PatchInstanceGeneralSettings = z.infer<typeof patchInstanceGeneralSettingsSchema>;
 export type InstanceExperimentalSettings = z.infer<typeof instanceExperimentalSettingsSchema>;

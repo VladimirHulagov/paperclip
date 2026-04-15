@@ -15,10 +15,23 @@ export interface InstanceExperimentalSettings {
   autoRestartDevServerWhenIdle: boolean;
 }
 
+export interface InstanceMessagingTelegramSettings {
+  enabled: boolean;
+  botToken?: string;
+  chatId?: string;
+  allowedUsers?: string;
+  defaultTimeout: number;
+}
+
+export interface InstanceMessagingSettings {
+  telegram?: InstanceMessagingTelegramSettings;
+}
+
 export interface InstanceSettings {
   id: string;
   general: InstanceGeneralSettings;
   experimental: InstanceExperimentalSettings;
+  messaging: InstanceMessagingSettings;
   createdAt: Date;
   updatedAt: Date;
 }

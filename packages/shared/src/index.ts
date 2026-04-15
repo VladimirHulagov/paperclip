@@ -179,6 +179,8 @@ export type {
   AgentSkillSyncRequest,
   InstanceExperimentalSettings,
   InstanceGeneralSettings,
+  InstanceMessagingSettings,
+  InstanceMessagingTelegramSettings,
   InstanceSettings,
   TimeFormat,
   Agent,
@@ -365,6 +367,10 @@ export {
   instanceExperimentalSettingsSchema,
   patchInstanceExperimentalSettingsSchema,
   type PatchInstanceExperimentalSettings,
+  messagingSettingsSchema,
+  patchMessagingSettingsSchema,
+  type MessagingSettings,
+  type PatchMessagingSettings,
 } from "./validators/index.js";
 
 export {
