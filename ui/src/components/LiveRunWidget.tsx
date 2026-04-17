@@ -3,7 +3,8 @@ import { Link } from "@/lib/router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { heartbeatsApi, type LiveRunForIssue } from "../api/heartbeats";
 import { queryKeys } from "../lib/queryKeys";
-import { formatDateTime } from "../lib/utils";
+import { queryKeys } from "../lib/queryKeys";
+import { useTimeSettings } from "../hooks/useTimeSettings";
 import { ExternalLink, Square } from "lucide-react";
 import { Identity } from "./Identity";
 import { StatusBadge } from "./StatusBadge";
@@ -25,6 +26,7 @@ function isRunActive(status: string): boolean {
 }
 
 export function LiveRunWidget({ issueId, companyId }: LiveRunWidgetProps) {
+  const { formatDateTime: fmtDateTime } = useTimeSettings();
   const queryClient = useQueryClient();
   const [cancellingRunIds, setCancellingRunIds] = useState(new Set<string>());
 
@@ -116,7 +118,7 @@ export function LiveRunWidget({ issueId, companyId }: LiveRunWidgetProps) {
                       {run.id.slice(0, 8)}
                     </Link>
                     <StatusBadge status={run.status} />
-                    <span>{formatDateTime(run.startedAt ?? run.createdAt)}</span>
+                    <span>{fmtDateTime(run.startedAt ?? run.createdAt)}</span>
                   </div>
                 </div>
 

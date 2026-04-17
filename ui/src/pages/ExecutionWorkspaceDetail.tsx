@@ -13,7 +13,8 @@ import { projectsApi } from "../api/projects";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useCompany } from "../context/CompanyContext";
 import { queryKeys } from "../lib/queryKeys";
-import { cn, formatDateTime, issueUrl, projectRouteRef, projectWorkspaceUrl } from "../lib/utils";
+import { cn, issueUrl, projectRouteRef, projectWorkspaceUrl } from "../lib/utils";
+import { useTimeSettings } from "../hooks/useTimeSettings";
 
 type WorkspaceFormState = {
   name: string;
@@ -216,6 +217,7 @@ function WorkspaceLink({
 
 export function ExecutionWorkspaceDetail() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
+  const { formatDateTime: fmtDateTime } = useTimeSettings();
   const queryClient = useQueryClient();
   const { setBreadcrumbs } = useBreadcrumbs();
   const { selectedCompanyId, setSelectedCompanyId } = useCompany();
@@ -667,11 +669,11 @@ export function ExecutionWorkspaceDetail() {
               <DetailRow label="Branch">
                 {workspace.branchName ? <MonoValue value={workspace.branchName} copy /> : "None"}
               </DetailRow>
-              <DetailRow label="Opened">{formatDateTime(workspace.openedAt)}</DetailRow>
-              <DetailRow label="Last used">{formatDateTime(workspace.lastUsedAt)}</DetailRow>
+              <DetailRow label="Opened">{fmtDateTime(workspace.openedAt)}</DetailRow>
+              <DetailRow label="Last used">{fmtDateTime(workspace.lastUsedAt)}</DetailRow>
               <DetailRow label="Cleanup">
                 {workspace.cleanupEligibleAt
-                  ? `${formatDateTime(workspace.cleanupEligibleAt)}${workspace.cleanupReason ? ` · ${workspace.cleanupReason}` : ""}`
+                  ? `${fmtDateTime(workspace.cleanupEligibleAt)}${workspace.cleanupReason ? ` · ${workspace.cleanupReason}` : ""}`
                   : "Not scheduled"}
               </DetailRow>
             </div>
@@ -777,8 +779,8 @@ export function ExecutionWorkspaceDetail() {
                         <div className="space-y-1">
                           <div className="text-sm font-medium">{operation.command ?? operation.phase}</div>
                           <div className="text-xs text-muted-foreground">
-                            {formatDateTime(operation.startedAt)}
-                            {operation.finishedAt ? ` → ${formatDateTime(operation.finishedAt)}` : ""}
+                            {fmtDateTime(operation.startedAt)}
+                            {operation.finishedAt ? ` → ${fmtDateTime(operation.finishedAt)}` : ""}
                           </div>
                           {operation.stderrExcerpt ? (
                             <div className="whitespace-pre-wrap break-words text-xs text-destructive">{operation.stderrExcerpt}</div>
@@ -837,7 +839,7 @@ export function ExecutionWorkspaceDetail() {
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
                     <span className="uppercase tracking-[0.16em]">{issue.priority}</span>
-                    <span>{formatDateTime(issue.updatedAt)}</span>
+                    <span>{fmtDateTime(issue.updatedAt)}</span>
                   </div>
                 </Link>
               ))}

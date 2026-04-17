@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Request, RequestHandler } from "express";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
-import { agentApiKeys, agents, companyMemberships, instanceUserRoles } from "@paperclipai/db";
+import { agentApiKeys, agents, companyMemberships, heartbeatRuns, instanceUserRoles } from "@paperclipai/db";
 import { verifyLocalAgentJwt } from "../agent-auth-jwt.js";
 import type { DeploymentMode } from "@paperclipai/shared";
 import type { BetterAuthSessionResult } from "../auth/better-auth.js";
@@ -139,6 +139,20 @@ export function actorMiddleware(db: Db, opts: ActorMiddlewareOptions): RequestHa
         runId: runIdHeader || claims.run_id || undefined,
         source: "agent_jwt",
       };
+
+      if (req.actor.runId) {
+        const runExists = await db
+          .select({ id: heartbeatRuns.id })
+          .from(heartbeatRuns)
+          .where(eq(heartbeatRuns.id, req.actor.runId))
+          .then((rows) => rows.length > 0)
+          .catch(() => false);
+        if (!runExists) {
+          logger.warn({ runId: req.actor.runId, agentId: req.actor.agentId }, "JWT run_id references non-existent heartbeat_run, clearing");
+          req.actor.runId = undefined;
+        }
+      }
+
       next();
       return;
     }

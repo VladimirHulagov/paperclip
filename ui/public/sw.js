@@ -1,4 +1,4 @@
-const CACHE_NAME = "paperclip-v2";
+const CACHE_NAME = "paperclip-v3";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -27,8 +27,13 @@ self.addEventListener("fetch", (event) => {
     fetch(request)
       .then((response) => {
         if (response.ok && url.origin === self.location.origin) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          const ct = response.headers.get("content-type") || "";
+          const expectsJs = url.pathname.startsWith("/assets/") && request.destination === "script";
+          const expectsCss = url.pathname.startsWith("/assets/") && request.destination === "style";
+          if (!((expectsJs && !ct.includes("javascript")) || (expectsCss && !ct.includes("css")))) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
         }
         return response;
       })

@@ -20,7 +20,8 @@ import { AgentIcon } from "./AgentIconPicker";
 import { formatAssigneeUserLabel } from "../lib/assignees";
 import type { IssueTimelineAssignee, IssueTimelineEvent } from "../lib/issue-timeline-events";
 import { timeAgo } from "../lib/timeAgo";
-import { cn, formatDateTime } from "../lib/utils";
+import { cn } from "../lib/utils";
+import { useTimeSettings } from "../hooks/useTimeSettings";
 import { restoreSubmittedCommentDraft } from "../lib/comment-submit-draft";
 import { PluginSlotOutlet } from "@/plugins/slots";
 
@@ -249,6 +250,7 @@ function CommentCard({
   highlightCommentId?: string | null;
   queued?: boolean;
 }) {
+  const { formatDateTime: fmtDateTime } = useTimeSettings();
   const isHighlighted = highlightCommentId === comment.id;
   const isPending = comment.clientStatus === "pending";
   const isQueued = queued || comment.queueState === "queued" || comment.clientStatus === "queued";
@@ -305,7 +307,7 @@ function CommentCard({
               href={`#comment-${comment.id}`}
               className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
             >
-              {formatDateTime(comment.createdAt)}
+              {fmtDateTime(comment.createdAt)}
             </a>
           )}
           <CopyMarkdownButton text={comment.body} />

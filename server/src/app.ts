@@ -258,6 +258,9 @@ export async function createApp(
     if (uiDist) {
       const indexHtml = applyUiBranding(fs.readFileSync(path.join(uiDist, "index.html"), "utf-8"));
       app.use(express.static(uiDist));
+      app.get("/assets/{*path}", (_req, res) => {
+        res.status(404).end();
+      });
       app.get(/.*/, (_req, res) => {
         res.status(200).set("Content-Type", "text/html").end(indexHtml);
       });

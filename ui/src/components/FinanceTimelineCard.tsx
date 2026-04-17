@@ -5,9 +5,9 @@ import {
   financeDirectionDisplayName,
   financeEventKindDisplayName,
   formatCents,
-  formatDateTime,
   providerDisplayName,
 } from "@/lib/utils";
+import { useTimeSettings } from "../hooks/useTimeSettings";
 
 interface FinanceTimelineCardProps {
   rows: FinanceEvent[];
@@ -18,6 +18,7 @@ export function FinanceTimelineCard({
   rows,
   emptyMessage = "No financial events in this period.",
 }: FinanceTimelineCardProps) {
+  const { formatDateTime: fmtDateTime } = useTimeSettings();
   return (
     <Card>
       <CardHeader className="px-4 pt-4 pb-1">
@@ -40,7 +41,7 @@ export function FinanceTimelineCard({
                     <Badge variant={row.direction === "credit" ? "outline" : "secondary"}>
                       {financeDirectionDisplayName(row.direction)}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">{formatDateTime(row.occurredAt)}</span>
+                    <span className="text-xs text-muted-foreground">{fmtDateTime(row.occurredAt)}</span>
                   </div>
                   <div className="text-sm font-medium">
                     {providerDisplayName(row.biller)}

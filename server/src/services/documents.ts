@@ -306,7 +306,7 @@ export function documentService(db: Db) {
               changeSummary: input.changeSummary ?? null,
               createdByAgentId: input.createdByAgentId ?? null,
               createdByUserId: input.createdByUserId ?? null,
-              createdByRunId: input.createdByRunId ?? null,
+              createdByRunId: verifiedRunId,
               createdAt: now,
             })
             .returning();

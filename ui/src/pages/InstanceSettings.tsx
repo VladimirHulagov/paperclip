@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { queryKeys } from "../lib/queryKeys";
-import { formatDateTime, relativeTime } from "../lib/utils";
+import { relativeTime } from "../lib/utils";
+import { useTimeSettings } from "../hooks/useTimeSettings";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
@@ -28,6 +29,7 @@ function buildAgentHref(agent: InstanceSchedulerHeartbeatAgent) {
 
 export function InstanceSettings() {
   const { setBreadcrumbs } = useBreadcrumbs();
+  const { formatDateTime: fmtDateTime } = useTimeSettings();
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -245,7 +247,7 @@ export function InstanceSettings() {
                         </span>
                         <span
                           className="hidden md:inline text-muted-foreground truncate"
-                          title={agent.lastHeartbeatAt ? formatDateTime(agent.lastHeartbeatAt) : undefined}
+                          title={agent.lastHeartbeatAt ? fmtDateTime(agent.lastHeartbeatAt) : undefined}
                         >
                           {agent.lastHeartbeatAt
                             ? relativeTime(agent.lastHeartbeatAt)

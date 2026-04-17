@@ -5,7 +5,8 @@ import { Loader2 } from "lucide-react";
 import { executionWorkspacesApi } from "../api/execution-workspaces";
 import { useToast } from "../context/ToastContext";
 import { queryKeys } from "../lib/queryKeys";
-import { formatDateTime, issueUrl } from "../lib/utils";
+import { issueUrl } from "../lib/utils";
+import { useTimeSettings } from "../hooks/useTimeSettings";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -45,6 +46,7 @@ export function ExecutionWorkspaceCloseDialog({
 }: ExecutionWorkspaceCloseDialogProps) {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
+  const { formatDateTime: fmtDateTime } = useTimeSettings();
   const actionLabel = currentStatus === "cleanup_failed" ? "Retry close" : "Close workspace";
 
   const readinessQuery = useQuery({
@@ -286,7 +288,7 @@ export function ExecutionWorkspaceCloseDialog({
             ) : null}
 
             <div className="text-xs text-muted-foreground">
-              Last checked {formatDateTime(new Date())}
+              Last checked {fmtDateTime(new Date())}
             </div>
           </div>
         ) : null}
