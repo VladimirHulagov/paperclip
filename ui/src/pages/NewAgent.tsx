@@ -5,6 +5,7 @@ import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { agentsApi } from "../api/agents";
 import { companySkillsApi } from "../api/companySkills";
+import { companyRolesApi } from "../api/roles";
 import { queryKeys } from "../lib/queryKeys";
 import { AGENT_ROLES } from "@paperclipai/shared";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import {
 } from "@paperclipai/adapter-codex-local";
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
 import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
+import { DEFAULT_HERMES_LOCAL_MODEL } from "hermes-paperclip-adapter";
 
 function createValuesForAdapterType(
   adapterType: CreateConfigValues["adapterType"],
@@ -45,6 +47,8 @@ function createValuesForAdapterType(
     nextValues.model = DEFAULT_CURSOR_LOCAL_MODEL;
   } else if (adapterType === "opencode_local") {
     nextValues.model = "";
+  } else if (adapterType === "hermes_local") {
+    nextValues.model = DEFAULT_HERMES_LOCAL_MODEL;
   }
   return nextValues;
 }
@@ -63,6 +67,7 @@ export function NewAgent() {
   const [reportsTo, setReportsTo] = useState<string | null>(null);
   const [configValues, setConfigValues] = useState<CreateConfigValues>(defaultCreateValues);
   const [selectedSkillKeys, setSelectedSkillKeys] = useState<string[]>([]);
+  const [selectedRoleKey, setSelectedRoleKey] = useState<string | null>(null);
   const [roleOpen, setRoleOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -88,6 +93,12 @@ export function NewAgent() {
   const { data: companySkills } = useQuery({
     queryKey: queryKeys.companySkills.list(selectedCompanyId ?? ""),
     queryFn: () => companySkillsApi.list(selectedCompanyId!),
+    enabled: Boolean(selectedCompanyId),
+  });
+
+  const { data: companyRoles } = useQuery({
+    queryKey: queryKeys.companyRoles.list(selectedCompanyId ?? ""),
+    queryFn: () => companyRolesApi.list(selectedCompanyId!),
     enabled: Boolean(selectedCompanyId),
   });
 
@@ -173,6 +184,7 @@ export function NewAgent() {
       ...(title.trim() ? { title: title.trim() } : {}),
       ...(reportsTo ? { reportsTo } : {}),
       ...(selectedSkillKeys.length > 0 ? { desiredSkills: selectedSkillKeys } : {}),
+      ...(selectedRoleKey ? { assignedRole: selectedRoleKey } : {}),
       adapterType: configValues.adapterType,
       adapterConfig: buildAdapterConfig(),
       runtimeConfig: {
@@ -311,6 +323,36 @@ export function NewAgent() {
                   );
                 })}
               </div>
+            )}
+          </div>
+        </div>
+
+        <div className="border-t border-border px-4 py-4">
+          <div className="space-y-3">
+            <div>
+              <h2 className="text-sm font-medium">Role</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Assign a role template. The role description will be used as the agent's instructions.
+              </p>
+            </div>
+            {(companyRoles ?? []).length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No roles available.{" "}
+                <a href="/roles" className="underline">Manage roles</a>
+              </p>
+            ) : (
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={selectedRoleKey ?? ""}
+                onChange={(e) => setSelectedRoleKey(e.target.value || null)}
+              >
+                <option value="">No role</option>
+                {(companyRoles ?? []).map((role) => (
+                  <option key={role.id} value={role.key}>
+                    {role.category ? `${role.category} / ` : ""}{role.name}
+                  </option>
+                ))}
+              </select>
             )}
           </div>
         </div>

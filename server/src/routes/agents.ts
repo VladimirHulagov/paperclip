@@ -64,6 +64,7 @@ import {
 } from "@paperclipai/adapter-codex-local";
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
 import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
+import { DEFAULT_HERMES_LOCAL_MODEL } from "hermes-paperclip-adapter";
 import { ensureOpenCodeModelConfiguredAndAvailable } from "@paperclipai/adapter-opencode-local/server";
 import {
   loadDefaultAgentInstructionsBundle,
@@ -494,6 +495,9 @@ export function agentRoutes(db: Db) {
     // OpenCode requires explicit model selection — no default
     if (adapterType === "cursor" && !asNonEmptyString(next.model)) {
       next.model = DEFAULT_CURSOR_LOCAL_MODEL;
+    }
+    if (adapterType === "hermes_local" && !asNonEmptyString(next.model)) {
+      next.model = DEFAULT_HERMES_LOCAL_MODEL;
     }
     return ensureGatewayDeviceKey(adapterType, next);
   }
@@ -1280,6 +1284,7 @@ export function agentRoutes(db: Db) {
     const sourceIssueIds = parseSourceIssueIds(req.body);
     const {
       desiredSkills: requestedDesiredSkills,
+      assignedRole: requestedAssignedRole,
       sourceIssueId: _sourceIssueId,
       sourceIssueIds: _sourceIssueIds,
       ...hireInput
@@ -1300,6 +1305,20 @@ export function agentRoutes(db: Db) {
       desiredSkillAssignment.adapterConfig,
       { strictMode: strictSecretsMode },
     );
+    if (typeof requestedAssignedRole === "string" && requestedAssignedRole) {
+      const { companyRoleService } = await import("../services/company-roles.js");
+      const roleSvc = companyRoleService(db);
+      const resolvedKey = await roleSvc.resolveRoleKey(companyId, requestedAssignedRole);
+      if (resolvedKey) {
+        normalizedAdapterConfig.assignedRole = resolvedKey;
+        if (!normalizedAdapterConfig.promptTemplate) {
+          const role = await roleSvc.getByKey(companyId, resolvedKey);
+          if (role) {
+            normalizedAdapterConfig.promptTemplate = role.markdown;
+          }
+        }
+      }
+    }
     await assertAdapterConfigConstraints(
       companyId,
       hireInput.adapterType,
@@ -1447,6 +1466,7 @@ export function agentRoutes(db: Db) {
 
     const {
       desiredSkills: requestedDesiredSkills,
+      assignedRole: requestedAssignedRole,
       ...createInput
     } = req.body;
     createInput.adapterType = assertKnownAdapterType(createInput.adapterType);
@@ -1465,6 +1485,20 @@ export function agentRoutes(db: Db) {
       desiredSkillAssignment.adapterConfig,
       { strictMode: strictSecretsMode },
     );
+    if (typeof requestedAssignedRole === "string" && requestedAssignedRole) {
+      const { companyRoleService } = await import("../services/company-roles.js");
+      const roleSvc = companyRoleService(db);
+      const resolvedKey = await roleSvc.resolveRoleKey(companyId, requestedAssignedRole);
+      if (resolvedKey) {
+        normalizedAdapterConfig.assignedRole = resolvedKey;
+        if (!normalizedAdapterConfig.promptTemplate) {
+          const role = await roleSvc.getByKey(companyId, resolvedKey);
+          if (role) {
+            normalizedAdapterConfig.promptTemplate = role.markdown;
+          }
+        }
+      }
+    }
     await assertAdapterConfigConstraints(
       companyId,
       createInput.adapterType,
