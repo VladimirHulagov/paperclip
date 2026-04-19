@@ -12,6 +12,7 @@ import {
   Repeat,
   Settings,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { SidebarSection } from "./SidebarSection";
@@ -112,6 +113,7 @@ export function Sidebar() {
           <SidebarNavItem to="/org" label="Org" icon={Network} />
           <SidebarNavItem to="/approvals/pending" label="Approvals" icon={ShieldCheck} badge={inboxBadge.approvals} />
           <SidebarNavItem to="/skills" label="Skills" icon={Boxes} />
+          <SidebarNavItem to="/roles" label="Roles" icon={Users} />
           <SidebarNavItem to="/costs" label="Costs" icon={DollarSign} />
           <SidebarNavItem to="/activity" label="Activity" icon={History} />
           <SidebarNavItem to="/company/settings" label="Settings" icon={Settings} />

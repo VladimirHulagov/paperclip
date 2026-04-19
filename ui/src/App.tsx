@@ -26,6 +26,7 @@ import { Activity } from "./pages/Activity";
 import { Inbox } from "./pages/Inbox";
 import { CompanySettings } from "./pages/CompanySettings";
 import { CompanySkills } from "./pages/CompanySkills";
+import { CompanyRoles } from "./pages/CompanyRoles";
 import { CompanyExport } from "./pages/CompanyExport";
 import { CompanyImport } from "./pages/CompanyImport";
 import { DesignGuide } from "./pages/DesignGuide";
@@ -129,6 +130,7 @@ function boardRoutes() {
       <Route path="company/export/*" element={<CompanyExport />} />
       <Route path="company/import" element={<CompanyImport />} />
       <Route path="skills/*" element={<CompanySkills />} />
+      <Route path="roles" element={<CompanyRoles />} />
       <Route path="settings" element={<LegacySettingsRedirect />} />
       <Route path="settings/*" element={<LegacySettingsRedirect />} />
       <Route path="plugins/:pluginId" element={<PluginPage />} />
@@ -337,6 +339,7 @@ export function App() {
           <Route path="routines" element={<UnprefixedBoardRedirect />} />
           <Route path="routines/:routineId" element={<UnprefixedBoardRedirect />} />
           <Route path="skills/*" element={<UnprefixedBoardRedirect />} />
+          <Route path="roles" element={<UnprefixedBoardRedirect />} />
           <Route path="settings" element={<LegacySettingsRedirect />} />
           <Route path="settings/*" element={<LegacySettingsRedirect />} />
           <Route path="agents" element={<UnprefixedBoardRedirect />} />
