@@ -217,3 +217,17 @@ export type {
   PluginJobRunRecord,
   PluginWebhookDeliveryRecord,
 } from "./plugin.js";
+export type {
+  RoleSourceType,
+  RoleSource,
+  CompanyRole,
+  CompanyRoleListItem,
+  CompanyRoleDetail,
+  CompanyRoleUsageAgent,
+  RoleSourceBrowseEntry,
+  RoleSourceBrowseResult,
+  CompanyRoleCreateRequest,
+  CompanyRoleImportRequest,
+  CompanyRoleImportResult,
+  RoleSourceCreateRequest,
+} from "./role.js";

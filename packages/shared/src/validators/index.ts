@@ -304,3 +304,21 @@ export {
   type SetPluginState,
   type ListPluginState,
 } from "./plugin.js";
+
+export {
+  roleSourceTypeSchema,
+  roleSourceSchema,
+  companyRoleSchema,
+  companyRoleListItemSchema,
+  companyRoleUsageAgentSchema,
+  companyRoleDetailSchema,
+  roleSourceBrowseEntrySchema,
+  roleSourceBrowseResultSchema,
+  companyRoleCreateSchema,
+  companyRoleImportSchema,
+  companyRoleImportResultSchema,
+  roleSourceCreateSchema,
+  type RoleSourceCreate,
+  type CompanyRoleCreate,
+  type CompanyRoleImport,
+} from "./role.js";
