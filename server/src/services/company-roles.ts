@@ -78,7 +78,7 @@ export function companyRoleService(db: Db) {
       if (!row) return null;
 
       const agentRows = await db
-        .select({ id: agents.id, name: agents.name, urlKey: agents.urlKey, adapterConfig: agents.adapterConfig })
+        .select({ id: agents.id, name: agents.name, adapterConfig: agents.adapterConfig })
         .from(agents)
         .where(eq(agents.companyId, companyId));
 
@@ -87,7 +87,7 @@ export function companyRoleService(db: Db) {
           ? (a.adapterConfig as Record<string, unknown>)
           : {};
         return config.assignedRole === row.key;
-      }).map((a) => ({ id: a.id, name: a.name, urlKey: a.urlKey }));
+      }).map((a) => ({ id: a.id, name: a.name, urlKey: a.name.toLowerCase().replace(/\s+/g, "-") }));
 
       return {
         ...row,

@@ -74,6 +74,7 @@ import {
   listSkills as hermesListSkills,
   syncSkills as hermesSyncSkills,
   detectModel as detectModelFromHermes,
+  listHermesModels,
 } from "hermes-paperclip-adapter/server";
 import {
   agentConfigurationDoc as hermesAgentConfigurationDoc,
@@ -186,6 +187,7 @@ const hermesLocalAdapter: ServerAdapterModule = {
   listSkills: hermesListSkills,
   syncSkills: hermesSyncSkills,
   models: hermesModels,
+  listModels: listHermesModels,
   supportsLocalAgentJwt: true,
   agentConfigurationDoc: hermesAgentConfigurationDoc,
   detectModel: () => detectModelFromHermes(),

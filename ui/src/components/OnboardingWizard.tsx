@@ -39,6 +39,7 @@ import {
 } from "@paperclipai/adapter-codex-local";
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
 import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
+import { DEFAULT_HERMES_LOCAL_MODEL } from "hermes-paperclip-adapter";
 import { resolveRouteOnboardingOptions } from "../lib/onboarding-route";
 import { AsciiArtAnimation } from "./AsciiArtAnimation";
 import {
@@ -321,6 +322,8 @@ export function OnboardingWizard() {
             ? model || DEFAULT_GEMINI_LOCAL_MODEL
           : adapterType === "cursor"
           ? model || DEFAULT_CURSOR_LOCAL_MODEL
+          : adapterType === "hermes_local"
+          ? model || DEFAULT_HERMES_LOCAL_MODEL
           : model,
       command,
       args,
@@ -766,10 +769,11 @@ export function OnboardingWizard() {
                           onClick={() => {
                             const nextType = opt.type;
                             setAdapterType(nextType);
-                            if (nextType === "codex_local" && !model) {
+                            if (nextType === "codex_local") {
                               setModel(DEFAULT_CODEX_LOCAL_MODEL);
-                            }
-                            if (nextType !== "codex_local") {
+                            } else if (nextType === "hermes_local") {
+                              setModel(DEFAULT_HERMES_LOCAL_MODEL);
+                            } else {
                               setModel("");
                             }
                           }}
@@ -816,25 +820,29 @@ export function OnboardingWizard() {
                                  : "border-border hover:bg-accent/50"
                              )}
                              onClick={() => {
-                               if (opt.comingSoon) return;
-                               const nextType = opt.type;
-                              setAdapterType(nextType);
-                              if (nextType === "gemini_local" && !model) {
-                                setModel(DEFAULT_GEMINI_LOCAL_MODEL);
-                                return;
-                              }
-                              if (nextType === "cursor" && !model) {
-                                setModel(DEFAULT_CURSOR_LOCAL_MODEL);
-                                return;
-                              }
-                              if (nextType === "opencode_local") {
-                                if (!model.includes("/")) {
-                                  setModel("");
-                                }
-                                return;
-                              }
-                              setModel("");
-                            }}
+                                if (opt.comingSoon) return;
+                                const nextType = opt.type;
+                               setAdapterType(nextType);
+                               if (nextType === "gemini_local") {
+                                 setModel(DEFAULT_GEMINI_LOCAL_MODEL);
+                                 return;
+                               }
+                               if (nextType === "cursor") {
+                                 setModel(DEFAULT_CURSOR_LOCAL_MODEL);
+                                 return;
+                               }
+                               if (nextType === "opencode_local") {
+                                 if (!model.includes("/")) {
+                                   setModel("");
+                                 }
+                                 return;
+                               }
+                               if (nextType === "hermes_local") {
+                                 setModel(DEFAULT_HERMES_LOCAL_MODEL);
+                                 return;
+                               }
+                               setModel("");
+                             }}
                           >
                             <opt.icon className="h-4 w-4" />
                             <span className="font-medium">{opt.label}</span>

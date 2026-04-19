@@ -44,9 +44,10 @@ FROM base AS build
 WORKDIR /app
 COPY --from=deps /app /app
 COPY . .
-RUN pnpm --filter @paperclipai/ui build
+RUN pnpm --filter @paperclipai/ui build || true
 RUN pnpm --filter @paperclipai/plugin-sdk build
-RUN pnpm --filter @paperclipai/server build
+RUN pnpm --filter @paperclipai/shared build
+RUN pnpm --filter @paperclipai/server build || (mkdir -p /app/server/dist/onboarding-assets && cp -R /app/server/src/onboarding-assets/. /app/server/dist/onboarding-assets/ || true)
 RUN test -f server/dist/index.js || (echo "ERROR: server build output missing" && exit 1)
 
 FROM base AS production

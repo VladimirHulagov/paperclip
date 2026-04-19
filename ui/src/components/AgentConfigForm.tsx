@@ -16,6 +16,7 @@ import {
 } from "@paperclipai/adapter-codex-local";
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
 import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
+import { DEFAULT_HERMES_LOCAL_MODEL } from "hermes-paperclip-adapter";
 import {
   Popover,
   PopoverContent,
@@ -599,6 +600,8 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                       nextValues.model = DEFAULT_CURSOR_LOCAL_MODEL;
                     } else if (t === "opencode_local") {
                       nextValues.model = "";
+                    } else if (t === "hermes_local") {
+                      nextValues.model = DEFAULT_HERMES_LOCAL_MODEL;
                     }
                     set!(nextValues);
                   } else {
@@ -615,6 +618,8 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                               ? DEFAULT_GEMINI_LOCAL_MODEL
                             : t === "cursor"
                               ? DEFAULT_CURSOR_LOCAL_MODEL
+                            : t === "hermes_local"
+                              ? DEFAULT_HERMES_LOCAL_MODEL
                             : "",
                         effort: "",
                         modelReasoningEffort: "",

@@ -661,3 +661,36 @@ export {
   type SecretsLocalEncryptedConfig,
   type ConfigMeta,
 } from "./config-schema.js";
+
+export {
+  roleSourceTypeSchema,
+  roleSourceSchema,
+  companyRoleSchema,
+  companyRoleListItemSchema,
+  companyRoleUsageAgentSchema,
+  companyRoleDetailSchema,
+  roleSourceBrowseEntrySchema,
+  roleSourceBrowseResultSchema,
+  companyRoleCreateSchema,
+  companyRoleImportSchema,
+  companyRoleImportResultSchema,
+  roleSourceCreateSchema,
+  type RoleSourceCreate,
+  type CompanyRoleCreate,
+  type CompanyRoleImport,
+} from "./validators/role.js";
+
+export type {
+  RoleSourceType,
+  RoleSource,
+  CompanyRole,
+  CompanyRoleListItem,
+  CompanyRoleDetail,
+  CompanyRoleUsageAgent,
+  RoleSourceBrowseEntry,
+  RoleSourceBrowseResult,
+  CompanyRoleCreateRequest,
+  CompanyRoleImportRequest,
+  CompanyRoleImportResult,
+  RoleSourceCreateRequest,
+} from "./types/role.js";
