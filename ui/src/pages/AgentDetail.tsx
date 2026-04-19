@@ -8,6 +8,7 @@ import {
   type AgentPermissionUpdate,
 } from "../api/agents";
 import { companySkillsApi } from "../api/companySkills";
+import { companyRolesApi } from "../api/roles";
 import { budgetsApi } from "../api/budgets";
 import { heartbeatsApi } from "../api/heartbeats";
 import { instanceSettingsApi } from "../api/instanceSettings";
@@ -72,10 +73,19 @@ import {
   ArrowLeft,
   HelpCircle,
   FolderOpen,
+  Download,
+  Search,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { AgentIcon, AgentIconPicker } from "../components/AgentIconPicker";
 import { RunTranscriptView, type TranscriptMode } from "../components/transcript/RunTranscriptView";
 import {
@@ -1729,6 +1739,10 @@ function PromptsTab({
     entryFile: string;
     selectedFile: string;
   } | null>(null);
+  const [rolePickerOpen, setRolePickerOpen] = useState(false);
+  const [rolePickerSelected, setRolePickerSelected] = useState<string | null>(null);
+  const [rolePickerSearch, setRolePickerSearch] = useState("");
+  const [rolePickerExpanded, setRolePickerExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setSelectedFile("AGENTS.md");
@@ -1841,6 +1855,26 @@ function PromptsTab({
     mutationFn: async ({ file, namespace }: { file: File; namespace: string }) => {
       if (!selectedCompanyId) throw new Error("Select a company to upload images");
       return assetsApi.uploadImage(selectedCompanyId, file, namespace);
+    },
+  });
+
+  const { data: companyRoles } = useQuery({
+    queryKey: queryKeys.companyRoles.list(selectedCompanyId ?? ""),
+    queryFn: () => companyRolesApi.list(selectedCompanyId!),
+    enabled: Boolean(selectedCompanyId) && rolePickerOpen,
+  });
+
+  const applyRoleMarkdown = useMutation({
+    mutationFn: async (roleId: string) => {
+      if (!selectedCompanyId) throw new Error("No company selected");
+      const role = await companyRolesApi.detail(selectedCompanyId, roleId);
+      return role.markdown;
+    },
+    onSuccess: (markdown) => {
+      setDraft(markdown);
+      setRolePickerOpen(false);
+      setRolePickerSelected(null);
+      setRolePickerSearch("");
     },
   });
 
@@ -2335,26 +2369,38 @@ function PromptsTab({
                 </p>
               </div>
             </div>
-            {selectedFileExists && !selectedFileSummary?.deprecated && selectedOrEntryFile !== currentEntryFile && (
+            <div className="flex items-center gap-2">
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => {
-                  if (confirm(`Delete ${selectedOrEntryFile}?`)) {
-                    deleteFile.mutate(selectedOrEntryFile, {
-                      onSuccess: () => {
-                        setSelectedFile(currentEntryFile);
-                        setDraft(null);
-                      },
-                    });
-                  }
-                }}
-                disabled={deleteFile.isPending}
+                onClick={() => setRolePickerOpen(true)}
+                title="Load content from a role template"
               >
-                Delete
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Load from role
               </Button>
-            )}
+              {selectedFileExists && !selectedFileSummary?.deprecated && selectedOrEntryFile !== currentEntryFile && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (confirm(`Delete ${selectedOrEntryFile}?`)) {
+                      deleteFile.mutate(selectedOrEntryFile, {
+                        onSuccess: () => {
+                          setSelectedFile(currentEntryFile);
+                          setDraft(null);
+                        },
+                      });
+                    }
+                  }}
+                  disabled={deleteFile.isPending}
+                >
+                  Delete
+                </Button>
+              )}
+            </div>
           </div>
 
           {selectedFileExists && fileLoading && !selectedFileDetail ? (
@@ -2382,6 +2428,101 @@ function PromptsTab({
           )}
         </div>
       </div>
+
+      <Dialog open={rolePickerOpen} onOpenChange={(open) => {
+        setRolePickerOpen(open);
+        if (!open) { setRolePickerSelected(null); setRolePickerSearch(""); }
+      }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Load from Role</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center gap-2 border border-border rounded-md px-2 py-1.5">
+            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <input
+              value={rolePickerSearch}
+              onChange={(e) => setRolePickerSearch(e.target.value)}
+              placeholder="Filter roles..."
+              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          <div className="max-h-72 overflow-y-auto space-y-1">
+            {(() => {
+              const q = rolePickerSearch.toLowerCase();
+              const roles = (companyRoles ?? []).filter((r) =>
+                !q || r.name.toLowerCase().includes(q) || r.description?.toLowerCase().includes(q) || r.category?.toLowerCase().includes(q),
+              );
+              const grouped: Record<string, typeof roles> = {};
+              for (const r of roles) {
+                const cat = r.category || "Uncategorized";
+                if (!grouped[cat]) grouped[cat] = [];
+                grouped[cat].push(r);
+              }
+              if (roles.length === 0) {
+                return <p className="text-sm text-muted-foreground py-4 text-center">No roles found.</p>;
+              }
+              return Object.entries(grouped).map(([cat, catRoles]) => {
+                const isExpanded = rolePickerExpanded.has(cat);
+                return (
+                  <div key={cat} className="rounded-md border border-border overflow-hidden">
+                    <div
+                      className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent/30 transition-colors select-none"
+                      onClick={() => {
+                        setRolePickerExpanded((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(cat)) next.delete(cat); else next.add(cat);
+                          return next;
+                        });
+                      }}
+                    >
+                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                      <span className="font-medium flex-1">{cat}</span>
+                      <span className="text-xs text-muted-foreground">{catRoles.length}</span>
+                    </div>
+                    {isExpanded && (
+                      <div className="border-t border-border">
+                        {catRoles.map((role) => (
+                          <label
+                            key={role.id}
+                            className={cn(
+                              "flex items-start gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-accent/30 transition-colors",
+                              rolePickerSelected === role.id && "bg-accent/50",
+                            )}
+                            onClick={() => setRolePickerSelected(role.id)}
+                          >
+                            <input
+                              type="radio"
+                              name="rolePick"
+                              checked={rolePickerSelected === role.id}
+                              onChange={() => setRolePickerSelected(role.id)}
+                              className="mt-0.5"
+                            />
+                            <span>
+                              <span className="font-medium">{role.name}</span>
+                              {role.description && (
+                                <span className="block text-xs text-muted-foreground">{role.description}</span>
+                              )}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+            })()}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRolePickerOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => { if (rolePickerSelected) applyRoleMarkdown.mutate(rolePickerSelected); }}
+              disabled={!rolePickerSelected || applyRoleMarkdown.isPending}
+            >
+              {applyRoleMarkdown.isPending ? "Loading..." : "Load"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

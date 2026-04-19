@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "@/lib/router";
 import { useCompany } from "../context/CompanyContext";
@@ -15,10 +15,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Shield } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { HelpCircle, Search, Shield, X } from "lucide-react";
 import { cn, agentUrl } from "../lib/utils";
+import { help } from "../components/agent-config-primitives";
 import { roleLabels } from "../components/agent-config-primitives";
 import { AgentConfigForm, type CreateConfigValues } from "../components/AgentConfigForm";
+import { MarkdownEditor } from "../components/MarkdownEditor";
 import { defaultCreateValues } from "../components/agent-config-defaults";
 import { getUIAdapter, listUIAdapters } from "../adapters";
 import { useDisabledAdaptersSync } from "../adapters/use-disabled-adapters";
@@ -68,6 +71,9 @@ export function NewAgent() {
   const [configValues, setConfigValues] = useState<CreateConfigValues>(defaultCreateValues);
   const [selectedSkillKeys, setSelectedSkillKeys] = useState<string[]>([]);
   const [selectedRoleKey, setSelectedRoleKey] = useState<string | null>(null);
+  const [roleSearch, setRoleSearch] = useState("");
+  const [roleResultsOpen, setRoleResultsOpen] = useState(false);
+  const roleInputRef = useRef<HTMLInputElement>(null);
   const [roleOpen, setRoleOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -142,6 +148,15 @@ export function NewAgent() {
     },
   });
 
+  useEffect(() => {
+    if (!selectedRoleKey || !selectedCompanyId) return;
+    const role = (companyRoles ?? []).find((r) => r.key === selectedRoleKey);
+    if (!role) return;
+    companyRolesApi.detail(selectedCompanyId, role.id).then((detail) => {
+      setConfigValues((prev) => ({ ...prev, promptTemplate: detail.markdown }));
+    }).catch(() => {});
+  }, [selectedRoleKey, selectedCompanyId, companyRoles]);
+
   function buildAdapterConfig() {
     const adapter = getUIAdapter(configValues.adapterType);
     return adapter.buildAdapterConfig(configValues);
@@ -201,6 +216,24 @@ export function NewAgent() {
   }
 
   const availableSkills = (companySkills ?? []).filter((skill) => !skill.key.startsWith("paperclipai/paperclip/"));
+
+  const filteredRoles = useMemo(() => {
+    const roles = companyRoles ?? [];
+    if (!roleSearch.trim()) return roles.slice(0, 8);
+    const q = roleSearch.toLowerCase();
+    return roles.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) ||
+        r.description?.toLowerCase().includes(q) ||
+        r.category?.toLowerCase().includes(q) ||
+        r.key.toLowerCase().includes(q),
+    );
+  }, [companyRoles, roleSearch]);
+
+  const selectedRoleName = useMemo(() => {
+    if (!selectedRoleKey) return null;
+    return (companyRoles ?? []).find((r) => r.key === selectedRoleKey)?.name ?? null;
+  }, [companyRoles, selectedRoleKey]);
 
   function toggleSkill(key: string, checked: boolean) {
     setSelectedSkillKeys((prev) => {
@@ -287,15 +320,142 @@ export function NewAgent() {
           values={configValues}
           onChange={(patch) => setConfigValues((prev) => ({ ...prev, ...patch }))}
           adapterModels={adapterModels}
+          hidePromptTemplate
         />
+
+        {/* Role picker */}
+        <div className="border-t border-border px-4 py-4">
+          <div className="space-y-3">
+            <div className="flex items-center gap-1">
+              <h2 className="text-sm font-medium">Role</h2>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={4}>
+                  Assign a role template. The role description will be used as the agent&apos;s instructions.
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            {(companyRoles ?? []).length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No roles available.{" "}
+                <a href="/roles" className="underline">Manage roles</a>
+              </p>
+            ) : (
+              <div className="relative">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <input
+                      ref={roleInputRef}
+                      className="w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+                      placeholder="Search roles..."
+                      value={selectedRoleKey ? (selectedRoleName ?? selectedRoleKey) : roleSearch}
+                      onFocus={() => {
+                        if (selectedRoleKey) {
+                          setSelectedRoleKey(null);
+                          setRoleSearch("");
+                        }
+                        setRoleResultsOpen(true);
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => setRoleResultsOpen(false), 150);
+                      }}
+                      onChange={(e) => {
+                        setRoleSearch(e.target.value);
+                        setSelectedRoleKey(null);
+                        setRoleResultsOpen(true);
+                      }}
+                    />
+                    {selectedRoleKey && (
+                      <button
+                        type="button"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setSelectedRoleKey(null);
+                          setRoleSearch("");
+                          setRoleResultsOpen(true);
+                          roleInputRef.current?.focus();
+                        }}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {roleResultsOpen && filteredRoles.length > 0 && !selectedRoleKey && (
+                  <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-background shadow-lg max-h-60 overflow-y-auto">
+                    {filteredRoles.map((role) => (
+                      <button
+                        key={role.id}
+                        type="button"
+                        className={cn(
+                          "w-full flex items-start gap-2 px-3 py-2 text-sm text-left hover:bg-accent/30 transition-colors",
+                          selectedRoleKey === role.key && "bg-accent/50",
+                        )}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setSelectedRoleKey(role.key);
+                          setRoleSearch("");
+                          setRoleResultsOpen(false);
+                        }}
+                      >
+                        <span className="flex-1 min-w-0">
+                          <span className="font-medium">{role.name}</span>
+                          {role.category && (
+                            <span className="ml-1.5 text-xs text-muted-foreground">{role.category}</span>
+                          )}
+                          {role.description && (
+                            <span className="block text-xs text-muted-foreground truncate">{role.description}</span>
+                          )}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {roleResultsOpen && filteredRoles.length === 0 && roleSearch.trim() && !selectedRoleKey && (
+                  <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-background shadow-lg px-3 py-4 text-sm text-muted-foreground text-center">
+                    No matching roles
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center gap-1">
+                <h3 className="text-xs font-medium text-muted-foreground">Prompt Template</h3>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="right" sideOffset={4}>
+                    {help.promptTemplate}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <MarkdownEditor
+                value={configValues.promptTemplate}
+                onChange={(v) => setConfigValues((prev) => ({ ...prev, promptTemplate: v ?? "" }))}
+                placeholder="You are agent {{ agent.name }}. Your role is {{ agent.role }}..."
+                contentClassName="min-h-[88px] text-sm font-mono"
+              />
+            </div>
+          </div>
+        </div>
 
         <div className="border-t border-border px-4 py-4">
           <div className="space-y-3">
-            <div>
+            <div className="flex items-center gap-1">
               <h2 className="text-sm font-medium">Company skills</h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Optional skills from the company library. Built-in Paperclip runtime skills are added automatically.
-              </p>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={4}>
+                  Optional skills from the company library. Built-in Paperclip runtime skills are added automatically.
+                </TooltipContent>
+              </Tooltip>
             </div>
             {availableSkills.length === 0 ? (
               <p className="text-xs text-muted-foreground">
@@ -323,36 +483,6 @@ export function NewAgent() {
                   );
                 })}
               </div>
-            )}
-          </div>
-        </div>
-
-        <div className="border-t border-border px-4 py-4">
-          <div className="space-y-3">
-            <div>
-              <h2 className="text-sm font-medium">Role</h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Assign a role template. The role description will be used as the agent's instructions.
-              </p>
-            </div>
-            {(companyRoles ?? []).length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                No roles available.{" "}
-                <a href="/roles" className="underline">Manage roles</a>
-              </p>
-            ) : (
-              <select
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={selectedRoleKey ?? ""}
-                onChange={(e) => setSelectedRoleKey(e.target.value || null)}
-              >
-                <option value="">No role</option>
-                {(companyRoles ?? []).map((role) => (
-                  <option key={role.id} value={role.key}>
-                    {role.category ? `${role.category} / ` : ""}{role.name}
-                  </option>
-                ))}
-              </select>
             )}
           </div>
         </div>

@@ -195,11 +195,7 @@ export function companyRoleService(db: Db) {
     },
 
     async resolveRoleKey(companyId: string, ref: string) {
-      const [byId] = await db
-        .select()
-        .from(companyRoles)
-        .where(and(eq(companyRoles.companyId, companyId), eq(companyRoles.id, ref)));
-      if (byId) return byId.key;
+      const isUuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ref);
 
       const [byKey] = await db
         .select()
@@ -212,6 +208,14 @@ export function companyRoleService(db: Db) {
         .from(companyRoles)
         .where(and(eq(companyRoles.companyId, companyId), eq(companyRoles.slug, ref)));
       if (bySlug) return bySlug.key;
+
+      if (isUuidLike) {
+        const [byId] = await db
+          .select()
+          .from(companyRoles)
+          .where(and(eq(companyRoles.companyId, companyId), eq(companyRoles.id, ref)));
+        if (byId) return byId.key;
+      }
 
       return null;
     },

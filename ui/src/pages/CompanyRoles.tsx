@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@/lib/router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CompanyRoleListItem, RoleSourceBrowseResult } from "@paperclipai/shared";
@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "../lib/utils";
-import { Folder, Plus, Trash2, Download, Search, Users } from "lucide-react";
+import { ChevronRight, ChevronDown, Folder, FolderOpen, Plus, Trash2, Download, Search, Users } from "lucide-react";
 
 export function CompanyRoles() {
   const queryClient = useQueryClient();
@@ -36,11 +36,15 @@ export function CompanyRoles() {
   const [newSourceRef, setNewSourceRef] = useState("");
   const [browseData, setBrowseData] = useState<RoleSourceBrowseResult | null>(null);
   const [selectedImportPaths, setSelectedImportPaths] = useState<Set<string>>(new Set());
+  const [importSearch, setImportSearch] = useState("");
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
-  setBreadcrumbs([
-    { label: selectedCompany?.name ?? "Company" },
-    { label: "Roles" },
-  ]);
+  useEffect(() => {
+    setBreadcrumbs([
+      { label: selectedCompany?.name ?? "Company" },
+      { label: "Roles" },
+    ]);
+  }, [selectedCompany?.name, setBreadcrumbs]);
 
   const rolesQuery = useQuery({
     queryKey: queryKeys.companyRoles.list(selectedCompanyId ?? ""),
@@ -428,50 +432,135 @@ export function CompanyRoles() {
                 <p className="text-sm text-muted-foreground">
                   {browseData.categories.reduce((sum, c) => sum + c.entries.length, 0)} roles available
                 </p>
-                <Button variant="ghost" size="sm" onClick={() => { setBrowseData(null); setSelectedImportPaths(new Set()); }}>
+                <Button variant="ghost" size="sm" onClick={() => { setBrowseData(null); setSelectedImportPaths(new Set()); setImportSearch(""); setExpandedCategories(new Set()); }}>
                   Back to sources
                 </Button>
               </div>
-              <div className="max-h-80 overflow-y-auto space-y-3">
-                {browseData.categories.map((cat) => (
-                  <div key={cat.name}>
-                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                      {cat.name}
-                    </div>
-                    {cat.entries.map((entry) => {
-                      const isSelected = selectedImportPaths.has(entry.path);
-                      return (
-                        <label
-                          key={entry.path}
-                          className={cn(
-                            "flex items-start gap-2 px-2 py-1.5 rounded text-sm cursor-pointer hover:bg-accent/30 transition-colors",
-                            isSelected && "bg-accent/50",
-                          )}
+              <div className="flex items-center gap-2 mb-3 border border-border rounded-md px-2 py-1.5">
+                <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <input
+                  value={importSearch}
+                  onChange={(e) => setImportSearch(e.target.value)}
+                  placeholder="Filter roles..."
+                  className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+              <label className="flex items-center gap-2 mb-3 px-2 py-1 rounded text-sm cursor-pointer hover:bg-accent/30 transition-colors border border-border">
+                <input
+                  type="checkbox"
+                  checked={browseData.categories.every((c) => c.entries.every((e) => selectedImportPaths.has(e.path))) && browseData.categories.some((c) => c.entries.length > 0)}
+                  onChange={() => {
+                    const allPaths = browseData.categories.flatMap((c) => c.entries.map((e) => e.path));
+                    const allSelected = allPaths.every((p) => selectedImportPaths.has(p));
+                    setSelectedImportPaths(allSelected ? new Set() : new Set(allPaths));
+                  }}
+                />
+                <span className="text-muted-foreground">Select all ({browseData.categories.reduce((sum, c) => sum + c.entries.length, 0)})</span>
+              </label>
+              <div className="max-h-80 overflow-y-auto space-y-1">
+                {browseData.categories
+                  .map((cat) => {
+                    const q = importSearch.toLowerCase();
+                    const filteredEntries = q
+                      ? cat.entries.filter(
+                          (e) =>
+                            e.name.toLowerCase().includes(q) ||
+                            e.description?.toLowerCase().includes(q) ||
+                            e.path.toLowerCase().includes(q),
+                        )
+                      : cat.entries;
+                    return { ...cat, filteredEntries };
+                  })
+                  .filter((cat) => cat.filteredEntries.length > 0)
+                  .map((cat) => {
+                    const isExpanded = expandedCategories.has(cat.name);
+                    const catAllSelected = cat.entries.every((e) => selectedImportPaths.has(e.path));
+                    const catSomeSelected = cat.entries.some((e) => selectedImportPaths.has(e.path));
+                    return (
+                      <div key={cat.name} className="rounded-md border border-border overflow-hidden">
+                        <div
+                          className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent/30 transition-colors select-none"
+                          onClick={() => {
+                            setExpandedCategories((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(cat.name)) next.delete(cat.name);
+                              else next.add(cat.name);
+                              return next;
+                            });
+                          }}
                         >
+                          {isExpanded ? (
+                            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          )}
+                          {isExpanded ? (
+                            <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
+                          ) : (
+                            <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+                          )}
+                          <span className="font-medium flex-1">{cat.name}</span>
+                          <span className="text-xs text-muted-foreground">{cat.filteredEntries.length}</span>
                           <input
                             type="checkbox"
-                            checked={isSelected}
+                            checked={catAllSelected}
+                            ref={(el) => {
+                              if (el) el.indeterminate = !catAllSelected && catSomeSelected;
+                            }}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={() => {
+                              const catPaths = cat.entries.map((e) => e.path);
                               setSelectedImportPaths((prev) => {
                                 const next = new Set(prev);
-                                if (next.has(entry.path)) next.delete(entry.path);
-                                else next.add(entry.path);
+                                if (catAllSelected) {
+                                  catPaths.forEach((p) => next.delete(p));
+                                } else {
+                                  catPaths.forEach((p) => next.add(p));
+                                }
                                 return next;
                               });
                             }}
-                            className="mt-0.5"
                           />
-                          <span>
-                            <span className="font-medium">{entry.name}</span>
-                            {entry.description && (
-                              <span className="block text-xs text-muted-foreground">{entry.description}</span>
-                            )}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                ))}
+                        </div>
+                        {isExpanded && (
+                          <div className="border-t border-border">
+                            {cat.filteredEntries.map((entry) => {
+                              const isSelected = selectedImportPaths.has(entry.path);
+                              return (
+                                <label
+                                  key={entry.path}
+                                  className={cn(
+                                    "flex items-start gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-accent/30 transition-colors",
+                                    isSelected && "bg-accent/50",
+                                  )}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => {
+                                      setSelectedImportPaths((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(entry.path)) next.delete(entry.path);
+                                        else next.add(entry.path);
+                                        return next;
+                                      });
+                                    }}
+                                    className="mt-0.5"
+                                  />
+                                  <span>
+                                    <span className="font-medium">{entry.name}</span>
+                                    {entry.description && (
+                                      <span className="block text-xs text-muted-foreground">{entry.description}</span>
+                                    )}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           )}

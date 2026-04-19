@@ -3,7 +3,7 @@ import { mkdir, rm, readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
-import { roleSources } from "@paperclipai/db";
+import { roleSources, companyRoles } from "@paperclipai/db";
 import type { Db } from "@paperclipai/db";
 
 const execFile = promisify(execFileCb);
@@ -58,9 +58,8 @@ export function roleSourceService(db: Db) {
     },
 
     async delete(companyId: string, sourceId: string) {
-      await db
-        .delete(roleSources)
-        .where(and(eq(roleSources.companyId, companyId), eq(roleSources.id, sourceId)));
+      await db.delete(companyRoles).where(and(eq(companyRoles.companyId, companyId), eq(companyRoles.sourceId, sourceId)));
+      await db.delete(roleSources).where(and(eq(roleSources.companyId, companyId), eq(roleSources.id, sourceId)));
       try {
         await rm(sourceCloneDir(sourceId), { recursive: true, force: true });
       } catch {}

@@ -677,7 +677,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
           )}
 
           {/* Prompt template (create mode only — edit mode shows this in Identity) */}
-          {isLocal && isCreate && (
+          {isLocal && isCreate && !props.hidePromptTemplate && (
             <>
               <Field label="Prompt Template" hint={help.promptTemplate}>
                 <MarkdownEditor
