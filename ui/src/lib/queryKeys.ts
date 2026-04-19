@@ -148,4 +148,14 @@ export const queryKeys = {
   adapters: {
     all: ["adapters"] as const,
   },
+  roleSources: {
+    list: (companyId: string) => ["role-sources", companyId] as const,
+    browse: (companyId: string, sourceId: string) =>
+      ["role-sources", companyId, sourceId, "browse"] as const,
+  },
+  companyRoles: {
+    list: (companyId: string) => ["company-roles", companyId] as const,
+    detail: (companyId: string, roleId: string) =>
+      ["company-roles", companyId, roleId] as const,
+  },
 };
