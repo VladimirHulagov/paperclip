@@ -75,6 +75,7 @@ import {
   FolderOpen,
   Download,
   Search,
+  Upload,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -862,6 +863,31 @@ export function AgentDetail() {
     },
     onError: (err) => {
       setActionError(err instanceof Error ? err.message : "Failed to update permissions");
+    },
+  });
+
+  const saveAsRole = useMutation({
+    mutationFn: async () => {
+      if (!selectedCompanyId) throw new Error("No company selected");
+      if (!saveAsRoleName.trim()) throw new Error("Name is required");
+      return companyRolesApi.create(selectedCompanyId, {
+        name: saveAsRoleName.trim(),
+        description: saveAsRoleDesc.trim() || null,
+        category: saveAsRoleCat.trim() || null,
+        markdown: displayValue,
+      });
+    },
+    onSuccess: () => {
+      pushToast({ title: "Role created", body: `"${saveAsRoleName.trim()}" saved to company roles`, tone: "success" });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyRoles.list(selectedCompanyId ?? "") });
+      setSaveAsRoleOpen(false);
+      setSaveAsRoleName("");
+      setSaveAsRoleDesc("");
+      setSaveAsRoleCat("");
+    },
+    onError: (err) => {
+      const message = err instanceof ApiError ? err.message : "Failed to create role";
+      pushToast({ title: "Failed to create role", body: message, tone: "error" });
     },
   });
 
@@ -1718,6 +1744,7 @@ function PromptsTab({
   const queryClient = useQueryClient();
   const { selectedCompanyId } = useCompany();
   const { isMobile } = useSidebar();
+  const { pushToast } = useToast();
   const [selectedFile, setSelectedFile] = useState<string>("AGENTS.md");
   const [showFilePanel, setShowFilePanel] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
@@ -1743,6 +1770,10 @@ function PromptsTab({
   const [rolePickerSelected, setRolePickerSelected] = useState<string | null>(null);
   const [rolePickerSearch, setRolePickerSearch] = useState("");
   const [rolePickerExpanded, setRolePickerExpanded] = useState<Set<string>>(new Set());
+  const [saveAsRoleOpen, setSaveAsRoleOpen] = useState(false);
+  const [saveAsRoleName, setSaveAsRoleName] = useState("");
+  const [saveAsRoleDesc, setSaveAsRoleDesc] = useState("");
+  const [saveAsRoleCat, setSaveAsRoleCat] = useState("");
 
   useEffect(() => {
     setSelectedFile("AGENTS.md");
@@ -2374,6 +2405,17 @@ function PromptsTab({
                 type="button"
                 size="sm"
                 variant="outline"
+                onClick={() => setSaveAsRoleOpen(true)}
+                title="Save current content as a new company role"
+                disabled={!displayValue.trim()}
+              >
+                <Upload className="h-3.5 w-3.5 mr-1.5" />
+                Save as role
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
                 onClick={() => setRolePickerOpen(true)}
                 title="Load content from a role template"
               >
@@ -2428,6 +2470,58 @@ function PromptsTab({
           )}
         </div>
       </div>
+
+      <Dialog open={saveAsRoleOpen} onOpenChange={(open) => {
+        setSaveAsRoleOpen(open);
+        if (!open) { setSaveAsRoleName(""); setSaveAsRoleDesc(""); setSaveAsRoleCat(""); }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save as Role</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Name *</span>
+              <Input
+                value={saveAsRoleName}
+                onChange={(e) => setSaveAsRoleName(e.target.value)}
+                placeholder="e.g. Marketing Agent"
+                autoFocus
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Description</span>
+              <textarea
+                value={saveAsRoleDesc}
+                onChange={(e) => setSaveAsRoleDesc(e.target.value)}
+                placeholder="Optional description"
+                rows={2}
+                className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground resize-none"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Category</span>
+              <Input
+                value={saveAsRoleCat}
+                onChange={(e) => setSaveAsRoleCat(e.target.value)}
+                placeholder="e.g. marketing"
+              />
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Content from <span className="font-mono">{selectedOrEntryFile}</span> will be saved as a new company role.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSaveAsRoleOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => saveAsRole.mutate()}
+              disabled={!saveAsRoleName.trim() || saveAsRole.isPending}
+            >
+              {saveAsRole.isPending ? "Saving..." : "Create Role"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={rolePickerOpen} onOpenChange={(open) => {
         setRolePickerOpen(open);
