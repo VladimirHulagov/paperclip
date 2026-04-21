@@ -365,6 +365,13 @@
       "when": 1776374400000,
       "tag": "0051_roles_system",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1745308800000,
+      "tag": "0052_issue_checklist",
+      "breakpoints": true
     }
   ]
 }
