@@ -202,15 +202,16 @@ export function NewAgent() {
       ...(selectedRoleKey ? { assignedRole: selectedRoleKey } : {}),
       adapterType: configValues.adapterType,
       adapterConfig: buildAdapterConfig(),
-      runtimeConfig: {
-        heartbeat: {
-          enabled: configValues.heartbeatEnabled,
-          intervalSec: configValues.intervalSec,
-          wakeOnDemand: true,
-          cooldownSec: 10,
-          maxConcurrentRuns: 1,
+        runtimeConfig: {
+          heartbeat: {
+            enabled: configValues.heartbeatEnabled,
+            intervalSec: configValues.intervalSec,
+            wakeOnDemand: true,
+            cooldownSec: 10,
+            maxConcurrentRuns: 1,
+            maxHeartbeatRuns: 10,
+          },
         },
-      },
       budgetMonthlyCents: 0,
     });
   }

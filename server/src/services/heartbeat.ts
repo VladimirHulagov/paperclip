@@ -66,6 +66,8 @@ import {
 const MAX_LIVE_LOG_CHUNK_BYTES = 8 * 1024;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT = 1;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_MAX = 10;
+const HEARTBEAT_MAX_RUNS_DEFAULT = 10;
+const HEARTBEAT_MAX_RUNS_UNLIMITED = 0;
 const DEFERRED_WAKE_CONTEXT_KEY = "_paperclipWakeContext";
 const WAKE_COMMENT_IDS_KEY = "wakeCommentIds";
 const PAPERCLIP_WAKE_PAYLOAD_KEY = "paperclipWake";
@@ -274,6 +276,12 @@ function normalizeMaxConcurrentRuns(value: unknown) {
   const parsed = Math.floor(asNumber(value, HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT));
   if (!Number.isFinite(parsed)) return HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT;
   return Math.max(HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT, Math.min(HEARTBEAT_MAX_CONCURRENT_RUNS_MAX, parsed));
+}
+
+function normalizeMaxHeartbeatRuns(value: unknown) {
+  const parsed = Math.floor(asNumber(value, HEARTBEAT_MAX_RUNS_DEFAULT));
+  if (!Number.isFinite(parsed)) return HEARTBEAT_MAX_RUNS_DEFAULT;
+  return Math.max(0, parsed);
 }
 
 async function withAgentStartLock<T>(agentId: string, fn: () => Promise<T>) {
@@ -1917,6 +1925,7 @@ export function heartbeatService(db: Db) {
       intervalSec: Math.max(0, asNumber(heartbeat.intervalSec, 0)),
       wakeOnDemand: asBoolean(heartbeat.wakeOnDemand ?? heartbeat.wakeOnAssignment ?? heartbeat.wakeOnOnDemand ?? heartbeat.wakeOnAutomation, true),
       maxConcurrentRuns: normalizeMaxConcurrentRuns(heartbeat.maxConcurrentRuns),
+      maxHeartbeatRuns: normalizeMaxHeartbeatRuns(heartbeat.maxHeartbeatRuns),
     };
   }
 
@@ -4185,6 +4194,96 @@ export function heartbeatService(db: Db) {
         if (agent.status === "paused" || agent.status === "terminated" || agent.status === "pending_approval") continue;
         const policy = parseHeartbeatPolicy(agent);
         if (!policy.enabled || policy.intervalSec <= 0) continue;
+
+        if (policy.maxHeartbeatRuns > 0) {
+          const currentIssue = await db
+            .select({ id: issues.id })
+            .from(issues)
+            .where(
+              and(
+                eq(issues.assigneeAgentId, agent.id),
+                eq(issues.companyId, agent.companyId),
+                eq(issues.status, "in_progress"),
+              ),
+            )
+            .orderBy(desc(issues.updatedAt))
+            .limit(1)
+            .then((rows) => rows[0] ?? null);
+
+          let runCount: number;
+          if (currentIssue) {
+            const [{ count }] = await db
+              .select({ count: sql<number>`count(*)` })
+              .from(heartbeatRuns)
+              .where(
+                and(
+                  eq(heartbeatRuns.agentId, agent.id),
+                  sql`${heartbeatRuns.contextSnapshot} ->> 'issueId' = ${currentIssue.id}`,
+                ),
+              );
+            runCount = Number(count ?? 0);
+          } else {
+            const [{ count }] = await db
+              .select({ count: sql<number>`count(*)` })
+              .from(heartbeatRuns)
+              .where(
+                and(
+                  eq(heartbeatRuns.agentId, agent.id),
+                  sql`${heartbeatRuns.contextSnapshot} ->> 'issueId' IS NULL`,
+                ),
+              );
+            runCount = Number(count ?? 0);
+          }
+
+          if (runCount >= policy.maxHeartbeatRuns) {
+            if (currentIssue) {
+              const hasLimitComment = await db
+                .select({ id: issueComments.id })
+                .from(issueComments)
+                .where(
+                  and(
+                    eq(issueComments.issueId, currentIssue.id),
+                    eq(issueComments.companyId, agent.companyId),
+                    sql`${issueComments.body} LIKE '%__per_task_run_limit__%'`,
+                  ),
+                )
+                .limit(1)
+                .then((rows) => rows.length > 0);
+
+              if (!hasLimitComment) {
+                const agentRow = await db
+                  .select({ name: agents.name })
+                  .from(agents)
+                  .where(eq(agents.id, agent.id))
+                  .then((rows) => rows[0]);
+                const agentName = agentRow?.name ?? "Agent";
+                await db.insert(issueComments).values({
+                  id: crypto.randomUUID(),
+                  companyId: agent.companyId,
+                  issueId: currentIssue.id,
+                  body:
+                    `⚠️ **${agentName}** превысил лимит heartbeat runs на задачу (${runCount}/${policy.maxHeartbeatRuns}).\n\n` +
+                    `Агент приостановлен для этой задачи. Возможные причины:\n` +
+                    `- Агент застрял в цикле (контекстная компрессия потеряла прогресс)\n` +
+                    `- Задача слишком сложная для текущей конфигурации\n\n` +
+                    `<!-- __per_task_run_limit__ -->`,
+                  authorActorType: "system",
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                });
+                logger.warn("Per-task heartbeat run limit reached", {
+                  agentId: agent.id,
+                  issueId: currentIssue.id,
+                  runCount,
+                  limit: policy.maxHeartbeatRuns,
+                });
+              }
+            }
+
+            skipped += 1;
+            continue;
+          }
+        }
 
         checked += 1;
         const baseline = new Date(agent.lastHeartbeatAt ?? agent.createdAt).getTime();

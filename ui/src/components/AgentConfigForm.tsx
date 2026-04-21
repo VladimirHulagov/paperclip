@@ -978,6 +978,18 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                   className={inputClass}
                 />
               </Field>
+              <Field label="Max heartbeat runs" hint={help.maxHeartbeatRuns}>
+                <DraftNumberInput
+                  value={eff(
+                    "heartbeat",
+                    "maxHeartbeatRuns",
+                    Number(heartbeat.maxHeartbeatRuns ?? 10),
+                  )}
+                  onCommit={(v) => mark("heartbeat", "maxHeartbeatRuns", v)}
+                  immediate
+                  className={inputClass}
+                />
+              </Field>
             </div>
           </CollapsibleSection>
           </div>

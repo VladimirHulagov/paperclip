@@ -119,6 +119,16 @@ export function companyRoleService(db: Db) {
           markdown: data.markdown,
           sourceType: "local",
         })
+        .onConflictDoUpdate({
+          target: [companyRoles.companyId, companyRoles.key],
+          set: {
+            name: data.name,
+            description: data.description || null,
+            category: data.category || null,
+            markdown: data.markdown,
+            updatedAt: new Date(),
+          },
+        })
         .returning();
       return row;
     },

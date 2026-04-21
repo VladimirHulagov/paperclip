@@ -469,7 +469,8 @@ export function OnboardingWizard() {
             intervalSec: 3600,
             wakeOnDemand: true,
             cooldownSec: 10,
-            maxConcurrentRuns: 1
+            maxConcurrentRuns: 1,
+            maxHeartbeatRuns: 10
           }
         }
       });

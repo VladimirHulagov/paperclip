@@ -55,6 +55,7 @@ export const help: Record<string, string> = {
   wakeOnDemand: "Allow this agent to be woken by assignments, API calls, UI actions, or automated systems.",
   cooldownSec: "Minimum seconds between consecutive heartbeat runs.",
   maxConcurrentRuns: "Maximum number of heartbeat runs that can execute simultaneously for this agent.",
+  maxHeartbeatRuns: "Maximum heartbeat runs per task. Counter resets when agent completes a task (status → done). Agent is paused if limit is reached. 0 means unlimited.",
   budgetMonthlyCents: "Monthly spending limit in cents. 0 means no limit.",
 };
 
@@ -260,7 +261,10 @@ export function DraftInput({
   className?: string;
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "className">) {
   const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setDraft(value);
+  }, [value, focused]);
 
   return (
     <input
@@ -270,7 +274,9 @@ export function DraftInput({
         setDraft(e.target.value);
         if (immediate) onCommit(e.target.value);
       }}
+      onFocus={() => setFocused(true)}
       onBlur={() => {
+        setFocused(false);
         if (draft !== value) onCommit(draft);
       }}
       {...props}
@@ -295,7 +301,10 @@ export function DraftTextarea({
   minRows?: number;
 }) {
   const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setDraft(value);
+  }, [value, focused]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const rows = minRows ?? 3;
@@ -321,7 +330,9 @@ export function DraftTextarea({
         setDraft(e.target.value);
         if (immediate) onCommit(e.target.value);
       }}
+      onFocus={() => setFocused(true)}
       onBlur={() => {
+        setFocused(false);
         if (draft !== value) onCommit(draft);
       }}
       style={{ minHeight }}

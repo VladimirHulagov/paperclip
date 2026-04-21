@@ -63,8 +63,9 @@ interface CommentThreadProps {
     vote: FeedbackVoteValue,
     options?: { allowSharing?: boolean; reason?: string },
   ) => Promise<void>;
-  onAdd: (body: string, reopen?: boolean, reassignment?: CommentReassignment) => Promise<void>;
+  onAdd: (body: string, reopen?: boolean, reassignment?: CommentReassignment, interrupt?: boolean) => Promise<void>;
   issueStatus?: string;
+  hasActiveRun?: boolean;
   agentMap?: Map<string, Agent>;
   currentUserId?: string | null;
   imageUploadHandler?: (file: File) => Promise<string>;
@@ -573,9 +574,12 @@ export function CommentThread({
   onInterruptQueued,
   interruptingQueuedRunId = null,
   composerDisabledReason = null,
+  hasActiveRun = false,
 }: CommentThreadProps) {
   const [body, setBody] = useState("");
   const [reopen, setReopen] = useState(true);
+  const [interrupt, setInterrupt] = useState(false);
+  const isClosed = issueStatus === "done" || issueStatus === "cancelled";
   const [submitting, setSubmitting] = useState(false);
   const [attaching, setAttaching] = useState(false);
   const effectiveSuggestedAssigneeValue = suggestedAssigneeValue ?? currentAssigneeValue;
@@ -694,9 +698,10 @@ export function CommentThread({
     setSubmitting(true);
     setBody("");
     try {
-      await onAdd(submittedBody, reopen ? true : undefined, reassignment ?? undefined);
+      await onAdd(submittedBody, reopen ? true : undefined, reassignment ?? undefined, interrupt || undefined);
       if (draftKey) clearDraft(draftKey);
       setReopen(true);
+      setInterrupt(false);
       setReassignTarget(effectiveSuggestedAssigneeValue);
     } catch {
       setBody((current) =>
@@ -837,15 +842,28 @@ export function CommentThread({
                 </Button>
               </div>
             )}
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={reopen}
-                onChange={(e) => setReopen(e.target.checked)}
-                className="rounded border-border"
-              />
-              Re-open
-            </label>
+            {isClosed && (
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={reopen}
+                  onChange={(e) => setReopen(e.target.checked)}
+                  className="rounded border-border"
+                />
+                Re-open
+              </label>
+            )}
+            {hasActiveRun && (
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={interrupt}
+                  onChange={(e) => setInterrupt(e.target.checked)}
+                  className="rounded border-border"
+                />
+                Interrupt current run
+              </label>
+            )}
             {enableReassign && reassignOptions.length > 0 && (
               <InlineEntitySelector
                 value={reassignTarget}

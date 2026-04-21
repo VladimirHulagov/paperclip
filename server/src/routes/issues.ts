@@ -359,9 +359,19 @@ export function issueRoutes(
       return;
     }
 
+    const assigneeAgentIdFilterRaw = req.query.assigneeAgentId as string | undefined;
+    const assigneeAgentId =
+      assigneeAgentIdFilterRaw === "me" && req.actor.type === "agent"
+        ? req.actor.agentId
+        : (assigneeAgentIdFilterRaw === "me" ? undefined : assigneeAgentIdFilterRaw);
+    if (assigneeAgentIdFilterRaw === "me" && (!assigneeAgentId || req.actor.type !== "agent")) {
+      res.status(403).json({ error: "assigneeAgentId=me requires agent authentication" });
+      return;
+    }
+
     const result = await svc.list(companyId, {
       status: req.query.status as string | undefined,
-      assigneeAgentId: req.query.assigneeAgentId as string | undefined,
+      assigneeAgentId,
       participantAgentId: req.query.participantAgentId as string | undefined,
       assigneeUserId,
       touchedByUserId,
@@ -1471,9 +1481,11 @@ export function issueRoutes(
       return;
     }
     assertCompanyAccess(req, existing.companyId);
-    if (!(await assertAgentRunCheckoutOwnership(req, res, existing))) return;
-    const actorRunId = requireAgentRunId(req, res);
-    if (req.actor.type === "agent" && !actorRunId) return;
+    if (req.actor.type === "agent" && !req.actor.agentId) {
+      res.status(403).json({ error: "Agent authentication required" });
+      return;
+    }
+    const actorRunId = req.actor.type === "agent" ? (req.actor.runId?.trim() || null) : null;
 
     const released = await svc.release(
       id,

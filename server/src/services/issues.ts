@@ -1578,8 +1578,6 @@ export function issueService(db: Db) {
       const updated = await db
         .update(issues)
         .set({
-          status: "todo",
-          assigneeAgentId: null,
           checkoutRunId: null,
           updatedAt: new Date(),
         })

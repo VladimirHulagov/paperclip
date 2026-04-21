@@ -1537,6 +1537,7 @@ export function IssueDetail() {
             }}
             interruptingQueuedRunId={interruptQueuedComment.isPending ? runningIssueRun?.id ?? null : null}
             composerDisabledReason={commentComposerDisabledReason}
+            hasActiveRun={!!runningIssueRun}
             onVote={async (commentId, vote, options) => {
               await feedbackVoteMutation.mutateAsync({
                 targetType: "issue_comment",
@@ -1547,12 +1548,12 @@ export function IssueDetail() {
                 sharingPreferenceAtSubmit: feedbackDataSharingPreference,
               });
             }}
-            onAdd={async (body, reopen, reassignment) => {
+            onAdd={async (body, reopen, reassignment, interrupt) => {
               if (reassignment) {
-                await addCommentAndReassign.mutateAsync({ body, reopen, reassignment });
+                await addCommentAndReassign.mutateAsync({ body, reopen, reassignment, interrupt });
                 return;
               }
-              await addComment.mutateAsync({ body, reopen });
+              await addComment.mutateAsync({ body, reopen, interrupt });
             }}
             imageUploadHandler={async (file) => {
               const attachment = await uploadAttachment.mutateAsync(file);

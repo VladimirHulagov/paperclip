@@ -866,31 +866,6 @@ export function AgentDetail() {
     },
   });
 
-  const saveAsRole = useMutation({
-    mutationFn: async () => {
-      if (!selectedCompanyId) throw new Error("No company selected");
-      if (!saveAsRoleName.trim()) throw new Error("Name is required");
-      return companyRolesApi.create(selectedCompanyId, {
-        name: saveAsRoleName.trim(),
-        description: saveAsRoleDesc.trim() || null,
-        category: saveAsRoleCat.trim() || null,
-        markdown: displayValue,
-      });
-    },
-    onSuccess: () => {
-      pushToast({ title: "Role created", body: `"${saveAsRoleName.trim()}" saved to company roles`, tone: "success" });
-      queryClient.invalidateQueries({ queryKey: queryKeys.companyRoles.list(selectedCompanyId ?? "") });
-      setSaveAsRoleOpen(false);
-      setSaveAsRoleName("");
-      setSaveAsRoleDesc("");
-      setSaveAsRoleCat("");
-    },
-    onError: (err) => {
-      const message = err instanceof ApiError ? err.message : "Failed to create role";
-      pushToast({ title: "Failed to create role", body: message, tone: "error" });
-    },
-  });
-
   useEffect(() => {
     const crumbs: { label: string; href?: string }[] = [
       { label: "Agents", href: "/agents" },
@@ -1989,6 +1964,31 @@ function PromptsTab({
   const fileDirty = draft !== null && draft !== currentContent;
   const isDirty = bundleDirty || fileDirty;
   const isSaving = updateBundle.isPending || saveFile.isPending || deleteFile.isPending || awaitingRefresh;
+
+  const saveAsRole = useMutation({
+    mutationFn: async () => {
+      if (!selectedCompanyId) throw new Error("No company selected");
+      if (!saveAsRoleName.trim()) throw new Error("Name is required");
+      return companyRolesApi.create(selectedCompanyId, {
+        name: saveAsRoleName.trim(),
+        description: saveAsRoleDesc.trim() || null,
+        category: saveAsRoleCat.trim() || null,
+        markdown: displayValue,
+      });
+    },
+    onSuccess: () => {
+      pushToast({ title: "Role created", body: `"${saveAsRoleName.trim()}" saved to company roles`, tone: "success" });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyRoles.list(selectedCompanyId ?? "") });
+      setSaveAsRoleOpen(false);
+      setSaveAsRoleName("");
+      setSaveAsRoleDesc("");
+      setSaveAsRoleCat("");
+    },
+    onError: (err) => {
+      const message = err instanceof ApiError ? err.message : "Failed to create role";
+      pushToast({ title: "Failed to create role", body: message, tone: "error" });
+    },
+  });
 
   useEffect(() => { onSavingChange(isSaving); }, [onSavingChange, isSaving]);
   useEffect(() => { onDirtyChange(isDirty); }, [onDirtyChange, isDirty]);
