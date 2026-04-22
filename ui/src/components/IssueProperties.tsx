@@ -19,7 +19,7 @@ import { formatDate, cn, projectUrl } from "../lib/utils";
 import { timeAgo } from "../lib/timeAgo";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { User, Hexagon, ArrowUpRight, Tag, Plus, Trash2 } from "lucide-react";
+import { User, Hexagon, ArrowUpRight, Tag, Plus, Trash2, CheckSquare, Square } from "lucide-react";
 import { AgentIcon } from "./AgentIconPicker";
 
 function defaultProjectWorkspaceIdForProject(project: {
@@ -615,6 +615,39 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
           <span className="text-sm">{timeAgo(issue.updatedAt)}</span>
         </PropertyRow>
       </div>
+
+      {issue.checklist && issue.checklist.length > 0 && (
+        <>
+          <Separator />
+          <div className="space-y-1">
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-xs text-muted-foreground">Checklist</span>
+              <span className="text-xs text-muted-foreground">
+                {issue.checklist.filter((i) => i.done).length}/{issue.checklist.length}
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              {issue.checklist.map((item, idx) => (
+                <div key={idx} className="flex items-start gap-1.5 py-0.5">
+                  {item.done ? (
+                    <CheckSquare className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground" />
+                  ) : (
+                    <Square className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground" />
+                  )}
+                  <span
+                    className={cn(
+                      "text-xs leading-snug",
+                      item.done && "line-through text-muted-foreground",
+                    )}
+                  >
+                    {item.text}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
