@@ -96,6 +96,11 @@ export interface LegacyPlanDocument {
   source: "issue_description";
 }
 
+export interface IssueChecklistItem {
+  text: string;
+  done: boolean;
+}
+
 export interface Issue {
   id: string;
   companyId: string;
@@ -131,6 +136,7 @@ export interface Issue {
   completedAt: Date | null;
   cancelledAt: Date | null;
   hiddenAt: Date | null;
+  checklist?: IssueChecklistItem[] | null;
   labelIds?: string[];
   labels?: IssueLabel[];
   planDocument?: IssueDocument | null;
