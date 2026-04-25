@@ -2347,6 +2347,24 @@ export function companySkillService(db: Db) {
     return skill;
   }
 
+  async function deleteBySource(companyId: string, sourceType: string, sourceLocator: string): Promise<{ deletedCount: number }> {
+    const rows = await db
+      .select()
+      .from(companySkills)
+      .where(
+        and(
+          eq(companySkills.companyId, companyId),
+          eq(companySkills.sourceType, sourceType),
+          eq(companySkills.sourceLocator, sourceLocator),
+        ),
+      );
+    if (rows.length === 0) return { deletedCount: 0 };
+    for (const row of rows) {
+      await deleteSkill(companyId, row.id);
+    }
+    return { deletedCount: rows.length };
+  }
+
   return {
     list,
     listFull,
@@ -2362,6 +2380,7 @@ export function companySkillService(db: Db) {
     updateFile,
     createLocalSkill,
     deleteSkill,
+    deleteBySource,
     importFromSource,
     scanProjectWorkspaces,
     importPackageFiles,
