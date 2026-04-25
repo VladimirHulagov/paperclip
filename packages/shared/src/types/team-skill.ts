@@ -8,6 +8,7 @@ export interface TeamSkill {
   tags: string[];
   version: string;
   fileCount: number;
+  createdAt: string;
   modifiedAt: string;
 }
 
