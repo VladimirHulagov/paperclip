@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type SVGProps } from "react";
+import { useEffect, useMemo, useRef, useState, type SVGProps } from "react";
 import { Link, useNavigate, useParams } from "@/lib/router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
@@ -950,8 +950,10 @@ export function CompanySkills() {
     return routeSkillId;
   }, [routeSkillId, skillsQuery.data]);
 
+  const hasNavigatedRef = useRef(false);
   useEffect(() => {
-    if (routeSkillId || !selectedSkillId) return;
+    if (routeSkillId || !selectedSkillId || hasNavigatedRef.current) return;
+    hasNavigatedRef.current = true;
     navigate(skillRoute(selectedSkillId), { replace: true });
   }, [navigate, routeSkillId, selectedSkillId]);
 
