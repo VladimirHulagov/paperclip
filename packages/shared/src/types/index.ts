@@ -42,6 +42,10 @@ export type {
   AgentSkillSyncRequest,
 } from "./adapter-skills.js";
 export type {
+  TeamSkill,
+  TeamSkillDetail,
+} from "./team-skill.js";
+export type {
   Agent,
   AgentAccessState,
   AgentChainOfCommandEntry,
