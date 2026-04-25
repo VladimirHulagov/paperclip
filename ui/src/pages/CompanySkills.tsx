@@ -247,12 +247,16 @@ type SourceGroup = {
 function groupSkillsBySource(skills: CompanySkillListItem[]): SourceGroup[] {
   const map = new Map<string, SourceGroup>();
   for (const skill of skills) {
-    const key = `${skill.sourceType}::${skill.sourceLocator ?? ""}`;
+    const locator = skill.sourceBadge === "paperclip" ? "__paperclip_bundled__" : (skill.sourceLocator ?? "");
+    const key = `${skill.sourceBadge}::${locator}`;
     if (!map.has(key)) {
+      const label = skill.sourceBadge === "paperclip"
+        ? "Paperclip bundled"
+        : (skill.sourceLabel ?? skill.sourceType);
       map.set(key, {
         sourceType: skill.sourceType,
-        sourceLocator: skill.sourceLocator ?? "",
-        label: skill.sourceLabel ?? skill.sourceType,
+        sourceLocator: locator,
+        label,
         skills: [],
       });
     }
