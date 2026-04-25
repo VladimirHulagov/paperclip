@@ -1470,6 +1470,7 @@ export function CompanySkills() {
                         <div className="mt-3 flex flex-wrap gap-2 text-xs">
                           <span className="rounded-full bg-accent px-2.5 py-0.5">{teamSkillDetailQuery.data.agentName}</span>
                           <span className="rounded-full bg-accent px-2.5 py-0.5">{teamSkillDetailQuery.data.category}</span>
+                          {teamSkillDetailQuery.data.createdAt && <span className="rounded-full bg-accent/40 px-2.5 py-0.5">Created {new Date(teamSkillDetailQuery.data.createdAt).toLocaleDateString()}</span>}
                           {(teamSkillDetailQuery.data.tags ?? []).map(t => (
                             <span key={t} className="rounded-full bg-accent/60 px-2.5 py-0.5">{t}</span>
                           ))}
