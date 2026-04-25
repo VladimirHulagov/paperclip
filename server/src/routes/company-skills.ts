@@ -429,7 +429,7 @@ export function companySkillRoutes(db: Db) {
     }
   });
 
-  router.get("/companies/:companyId/team-skills/:agentId/:category/:skillName/files/:filePath(*)", async (req, res) => {
+  router.get("/companies/:companyId/team-skills/:agentId/:category/:skillName/files/*filePath", async (req, res) => {
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);
     const { agentId, category, skillName, filePath } = req.params;
@@ -444,7 +444,7 @@ export function companySkillRoutes(db: Db) {
     }
   });
 
-  router.put("/companies/:companyId/team-skills/:agentId/:category/:skillName/files/:filePath(*)", async (req, res) => {
+  router.put("/companies/:companyId/team-skills/:agentId/:category/:skillName/files/*filePath", async (req, res) => {
     const companyId = req.params.companyId as string;
     await assertCanMutateCompanySkills(req, companyId);
     const { agentId, category, skillName, filePath } = req.params;
