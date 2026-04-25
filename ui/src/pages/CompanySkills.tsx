@@ -11,6 +11,7 @@ import type {
   CompanySkillSourceBadge,
   CompanySkillUpdateStatus,
 } from "@paperclipai/shared";
+import type { TeamSkill, TeamSkillDetail } from "@paperclipai/shared";
 import { companySkillsApi } from "../api/companySkills";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -52,6 +53,9 @@ import {
   RefreshCw,
   Save,
   Search,
+  Trash2,
+  EyeOff,
+  Users,
 } from "lucide-react";
 
 type SkillTreeNode = {
@@ -229,6 +233,40 @@ function parseSkillRoute(routePath: string | undefined) {
 
 function skillRoute(skillId: string, filePath?: string | null) {
   return filePath ? `/skills/${skillId}/files/${encodeSkillFilePath(filePath)}` : `/skills/${skillId}`;
+}
+
+type HiddenSource = { source_type: string; source_locator: string };
+
+type SourceGroup = {
+  sourceType: string;
+  sourceLocator: string;
+  label: string;
+  skills: CompanySkillListItem[];
+};
+
+function groupSkillsBySource(skills: CompanySkillListItem[]): SourceGroup[] {
+  const map = new Map<string, SourceGroup>();
+  for (const skill of skills) {
+    const key = `${skill.sourceType}::${skill.sourceLocator ?? ""}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        sourceType: skill.sourceType,
+        sourceLocator: skill.sourceLocator ?? "",
+        label: skill.sourceLabel ?? skill.sourceType,
+        skills: [],
+      });
+    }
+    map.get(key)!.skills.push(skill);
+  }
+  const groups = Array.from(map.values());
+  const typeOrder = ["local_path", "github", "url", "skills_sh", "catalog"];
+  groups.sort((a, b) => {
+    const ai = typeOrder.indexOf(a.sourceType);
+    const bi = typeOrder.indexOf(b.sourceType);
+    if (ai !== bi) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    return a.label.localeCompare(b.label);
+  });
+  return groups;
 }
 
 function parentDirectoryPaths(filePath: string) {
@@ -482,6 +520,136 @@ function SkillList({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function SourceGroupedList({
+  skills, teamSkills, hiddenSources, selectedSkillId, selectedTeamSkill,
+  expandedSkillId, expandedDirs, expandedGroups, selectedPaths, skillFilter,
+  onToggleSkill, onToggleDir, onSelectSkill, onSelectPath, onToggleGroup,
+  onToggleVisibility, onDeleteSource, onSelectTeamSkill,
+}: {
+  skills: CompanySkillListItem[];
+  teamSkills: TeamSkill[];
+  hiddenSources: HiddenSource[];
+  selectedSkillId: string | null;
+  selectedTeamSkill: { agentId: string; category: string; skillName: string } | null;
+  expandedSkillId: string | null;
+  expandedDirs: Record<string, Set<string>>;
+  expandedGroups: Set<string>;
+  selectedPaths: Record<string, string>;
+  skillFilter: string;
+  onToggleSkill: (skillId: string) => void;
+  onToggleDir: (skillId: string, path: string) => void;
+  onSelectSkill: (skillId: string) => void;
+  onSelectPath: (skillId: string, path: string) => void;
+  onToggleGroup: (key: string) => void;
+  onToggleVisibility: (sourceType: string, sourceLocator: string) => void;
+  onDeleteSource: (sourceType: string, sourceLocator: string) => void;
+  onSelectTeamSkill: (agentId: string, category: string, skillName: string) => void;
+}) {
+  const groups = groupSkillsBySource(skills);
+  const filter = skillFilter.toLowerCase();
+  const isHidden = (st: string, sl: string) => hiddenSources.some(h => h.source_type === st && h.source_locator === sl);
+
+  const filteredGroups = groups.map(g => ({
+    ...g,
+    skills: g.skills.filter(s => {
+      const haystack = `${s.name} ${s.key} ${s.slug} ${s.sourceLabel ?? ""}`.toLowerCase();
+      return haystack.includes(filter);
+    }),
+  })).filter(g => g.skills.length > 0);
+
+  const filteredTeamSkills = teamSkills.filter(ts => {
+    const haystack = `${ts.skillName} ${ts.agentName} ${ts.category} ${ts.description} ${ts.tags.join(" ")}`.toLowerCase();
+    return haystack.includes(filter);
+  });
+
+  const teamAgents = new Map<string, TeamSkill[]>();
+  for (const ts of filteredTeamSkills) {
+    if (!teamAgents.has(ts.agentName)) teamAgents.set(ts.agentName, []);
+    teamAgents.get(ts.agentName)!.push(ts);
+  }
+
+  const teamGroupKey = "team::";
+  const teamHidden = isHidden("team", "");
+  const teamExpanded = expandedGroups.has(teamGroupKey);
+
+  return (
+    <div>
+      {filteredGroups.map((group) => {
+        const groupKey = `${group.sourceType}::${group.sourceLocator}`;
+        const hidden = isHidden(group.sourceType, group.sourceLocator);
+        const expanded = expandedGroups.has(groupKey);
+        const SourceIcon = sourceMeta(group.skills[0]?.sourceBadge ?? "catalog", group.skills[0]?.sourceLabel ?? null).icon;
+
+        return (
+          <div key={groupKey} className="border-b border-border">
+            <div className="group grid grid-cols-[minmax(0,1fr)_5rem] items-center gap-x-1 px-3 py-1.5 hover:bg-accent/30 cursor-pointer" onClick={() => onToggleGroup(groupKey)}>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground">
+                  {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                </span>
+                <SourceIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 truncate text-[13px] font-medium">{group.label}</span>
+                <span className={cn("ml-1 text-xs text-muted-foreground", hidden && "line-through opacity-50")}>({group.skills.length})</span>
+              </div>
+              <div className="flex items-center justify-end gap-0.5">
+                <button type="button" className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-[opacity,background-color,color] hover:bg-accent hover:text-foreground group-hover:opacity-70" onClick={(e) => { e.stopPropagation(); onToggleVisibility(group.sourceType, group.sourceLocator); }} title={hidden ? "Show skills" : "Hide skills"}>
+                  <EyeOff className={cn("h-3.5 w-3.5", hidden && "text-foreground")} />
+                </button>
+                <button type="button" className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-[opacity,background-color,color] hover:bg-destructive/10 hover:text-destructive group-hover:opacity-70" onClick={(e) => { e.stopPropagation(); onDeleteSource(group.sourceType, group.sourceLocator); }} title="Delete all skills from this source">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+            {expanded && !hidden && (
+              <SkillList skills={group.skills} selectedSkillId={selectedSkillId} skillFilter="" expandedSkillId={expandedSkillId} expandedDirs={expandedDirs} selectedPaths={selectedPaths} onToggleSkill={onToggleSkill} onToggleDir={onToggleDir} onSelectSkill={onSelectSkill} onSelectPath={onSelectPath} />
+            )}
+          </div>
+        );
+      })}
+
+      {filteredTeamSkills.length > 0 && (
+        <div className="border-b border-border">
+          <div className="group grid grid-cols-[minmax(0,1fr)_2.25rem] items-center gap-x-1 px-3 py-1.5 hover:bg-accent/30 cursor-pointer" onClick={() => onToggleGroup(teamGroupKey)}>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground">
+                {teamExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              </span>
+              <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 truncate text-[13px] font-medium">Team Skills</span>
+              <span className={cn("ml-1 text-xs text-muted-foreground", teamHidden && "line-through opacity-50")}>({filteredTeamSkills.length})</span>
+            </div>
+            <button type="button" className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-[opacity,background-color,color] hover:bg-accent hover:text-foreground group-hover:opacity-70" onClick={(e) => { e.stopPropagation(); onToggleVisibility("team", ""); }} title={teamHidden ? "Show team skills" : "Hide team skills"}>
+              <EyeOff className={cn("h-3.5 w-3.5", teamHidden && "text-foreground")} />
+            </button>
+          </div>
+          {teamExpanded && !teamHidden && (
+            <div>
+              {Array.from(teamAgents.entries()).map(([agentName, agentSkills]) => (
+                <div key={agentName}>
+                  <div className="flex items-center gap-2 px-4 py-1 text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
+                    <span>{agentName}</span>
+                    <span className="text-[10px] normal-case tracking-normal">({agentSkills.length})</span>
+                  </div>
+                  {agentSkills.map((ts) => {
+                    const isSelected = selectedTeamSkill?.agentId === ts.agentId && selectedTeamSkill?.category === ts.category && selectedTeamSkill?.skillName === ts.skillName;
+                    return (
+                      <button key={`${ts.agentId}/${ts.category}/${ts.skillName}`} type="button" className={cn("flex w-full items-center gap-2 px-6 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent/30 hover:text-foreground", isSelected && "text-foreground bg-accent/20")} onClick={() => onSelectTeamSkill(ts.agentId, ts.category, ts.skillName)}>
+                        <FileText className="h-3.5 w-3.5 shrink-0" />
+                        <span className="min-w-0 truncate text-[13px] font-medium">{ts.skillName}</span>
+                        {ts.tags.length > 0 && <span className="text-[10px] text-muted-foreground truncate">{ts.tags.slice(0, 2).join(", ")}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -751,6 +919,11 @@ export function CompanySkills() {
   const [displayedDetail, setDisplayedDetail] = useState<CompanySkillDetail | null>(null);
   const [displayedFile, setDisplayedFile] = useState<CompanySkillFileDetail | null>(null);
   const [scanStatusMessage, setScanStatusMessage] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [selectedTeamSkill, setSelectedTeamSkill] = useState<{ agentId: string; category: string; skillName: string } | null>(null);
+  const [teamSkillDraft, setTeamSkillDraft] = useState("");
+  const [teamSkillEditMode, setTeamSkillEditMode] = useState(false);
+  const [confirmDeleteSource, setConfirmDeleteSource] = useState<{ sourceType: string; sourceLocator: string } | null>(null);
   const parsedRoute = useMemo(() => parseSkillRoute(routePath), [routePath]);
   const routeSkillId = parsedRoute.skillId;
   const selectedPath = parsedRoute.filePath;
@@ -799,6 +972,18 @@ export function CompanySkills() {
       && (detailQuery.data?.sourceType === "github" || displayedDetail?.sourceType === "github"),
     ),
     staleTime: 60_000,
+  });
+
+  const teamSkillsQuery = useQuery({
+    queryKey: queryKeys.companySkills.teamSkills(selectedCompanyId ?? ""),
+    queryFn: () => companySkillsApi.listTeamSkills(selectedCompanyId!),
+    enabled: Boolean(selectedCompanyId),
+  });
+
+  const hiddenSourcesQuery = useQuery({
+    queryKey: queryKeys.companySkills.hiddenSources(selectedCompanyId ?? ""),
+    queryFn: () => companySkillsApi.hiddenSources(selectedCompanyId!),
+    enabled: Boolean(selectedCompanyId),
   });
 
   useEffect(() => {
@@ -987,6 +1172,58 @@ export function CompanySkills() {
     },
   });
 
+  const toggleVisibility = useMutation({
+    mutationFn: (sources: HiddenSource[]) => companySkillsApi.setHiddenSources(selectedCompanyId!, sources),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.companySkills.hiddenSources(selectedCompanyId!) });
+    },
+  });
+
+  const deleteSource = useMutation({
+    mutationFn: ({ sourceType, sourceLocator }: { sourceType: string; sourceLocator: string }) =>
+      companySkillsApi.deleteBySource(selectedCompanyId!, sourceType, sourceLocator),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.companySkills.list(selectedCompanyId!) });
+      setConfirmDeleteSource(null);
+      pushToast({ tone: "success", title: "Source deleted", body: "All skills from this source have been removed." });
+    },
+    onError: (error) => {
+      pushToast({ tone: "error", title: "Delete failed", body: error instanceof Error ? error.message : "Failed to delete source." });
+    },
+  });
+
+  const teamSkillDetailQuery = useQuery({
+    queryKey: queryKeys.companySkills.teamSkillDetail(selectedCompanyId ?? "", selectedTeamSkill?.agentId ?? "", selectedTeamSkill?.category ?? "", selectedTeamSkill?.skillName ?? ""),
+    queryFn: () => companySkillsApi.getTeamSkill(selectedCompanyId!, selectedTeamSkill!.agentId, selectedTeamSkill!.category, selectedTeamSkill!.skillName),
+    enabled: Boolean(selectedCompanyId && selectedTeamSkill),
+  });
+
+  const updateTeamSkill = useMutation({
+    mutationFn: ({ agentId, category, skillName, markdown }: { agentId: string; category: string; skillName: string; markdown: string }) =>
+      companySkillsApi.updateTeamSkill(selectedCompanyId!, agentId, category, skillName, markdown),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.companySkills.teamSkills(selectedCompanyId!) });
+      setTeamSkillEditMode(false);
+      pushToast({ tone: "success", title: "Team skill updated" });
+    },
+    onError: (error) => {
+      pushToast({ tone: "error", title: "Update failed", body: error instanceof Error ? error.message : "Failed to update team skill." });
+    },
+  });
+
+  const deleteTeamSkillMutation = useMutation({
+    mutationFn: ({ agentId, category, skillName }: { agentId: string; category: string; skillName: string }) =>
+      companySkillsApi.deleteTeamSkill(selectedCompanyId!, agentId, category, skillName),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.companySkills.teamSkills(selectedCompanyId!) });
+      setSelectedTeamSkill(null);
+      pushToast({ tone: "success", title: "Team skill deleted" });
+    },
+    onError: (error) => {
+      pushToast({ tone: "error", title: "Delete failed", body: error instanceof Error ? error.message : "Failed to delete team skill." });
+    },
+  });
+
   if (!selectedCompanyId) {
     return <EmptyState icon={Boxes} message="Select a company to manage skills." />;
   }
@@ -1041,6 +1278,23 @@ export function CompanySkills() {
             </a>
           </div>
           <DialogFooter showCloseButton />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmDeleteSource !== null} onOpenChange={() => setConfirmDeleteSource(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete source</DialogTitle>
+            <DialogDescription>
+              This will permanently delete all skills from this source and remove them from agent configurations.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmDeleteSource(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => { if (confirmDeleteSource) deleteSource.mutate(confirmDeleteSource); }} disabled={deleteSource.isPending}>
+              {deleteSource.isPending ? "Deleting..." : "Delete all skills"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1116,13 +1370,17 @@ export function CompanySkills() {
           ) : skillsQuery.error ? (
             <div className="px-4 py-6 text-sm text-destructive">{skillsQuery.error.message}</div>
           ) : (
-            <SkillList
+            <SourceGroupedList
               skills={skillsQuery.data ?? []}
+              teamSkills={teamSkillsQuery.data ?? []}
+              hiddenSources={hiddenSourcesQuery.data ?? []}
               selectedSkillId={selectedSkillId}
-              skillFilter={skillFilter}
+              selectedTeamSkill={selectedTeamSkill}
               expandedSkillId={expandedSkillId}
               expandedDirs={expandedDirs}
+              expandedGroups={expandedGroups}
               selectedPaths={selectedSkillId ? { [selectedSkillId]: selectedPath } : {}}
+              skillFilter={skillFilter}
               onToggleSkill={(currentSkillId) =>
                 setExpandedSkillId((current) => current === currentSkillId ? null : currentSkillId)
               }
@@ -1136,33 +1394,120 @@ export function CompanySkills() {
               }}
               onSelectSkill={(currentSkillId) => setExpandedSkillId(currentSkillId)}
               onSelectPath={() => {}}
+              onToggleGroup={(key) => {
+                setExpandedGroups((current) => {
+                  const next = new Set(current);
+                  if (next.has(key)) next.delete(key);
+                  else next.add(key);
+                  return next;
+                });
+              }}
+              onToggleVisibility={(sourceType, sourceLocator) => {
+                const current = hiddenSourcesQuery.data ?? [];
+                const exists = current.some(h => h.source_type === sourceType && h.source_locator === sourceLocator);
+                const updated = exists
+                  ? current.filter(h => !(h.source_type === sourceType && h.source_locator === sourceLocator))
+                  : [...current, { source_type: sourceType, source_locator: sourceLocator }];
+                toggleVisibility.mutate(updated);
+              }}
+              onDeleteSource={(sourceType, sourceLocator) => {
+                setConfirmDeleteSource({ sourceType, sourceLocator });
+              }}
+              onSelectTeamSkill={(agentId, category, skillName) => {
+                setSelectedTeamSkill({ agentId, category, skillName });
+              }}
             />
           )}
         </aside>
 
         <div className="min-w-0 pl-6">
-          <SkillPane
-            loading={skillsQuery.isLoading || detailQuery.isLoading}
-            detail={activeDetail}
-            file={activeFile}
-            fileLoading={fileQuery.isLoading && !activeFile}
-            updateStatus={updateStatusQuery.data}
-            updateStatusLoading={updateStatusQuery.isLoading}
-            viewMode={viewMode}
-            editMode={editMode}
-            draft={draft}
-            setViewMode={setViewMode}
-            setEditMode={setEditMode}
-            setDraft={setDraft}
-            onCheckUpdates={() => {
-              void updateStatusQuery.refetch();
-            }}
-            checkUpdatesPending={updateStatusQuery.isFetching}
-            onInstallUpdate={() => installUpdate.mutate()}
-            installUpdatePending={installUpdate.isPending}
-            onSave={() => saveFile.mutate()}
-            savePending={saveFile.isPending}
-          />
+          {!selectedTeamSkill && (
+            <SkillPane
+              loading={skillsQuery.isLoading || detailQuery.isLoading}
+              detail={activeDetail}
+              file={activeFile}
+              fileLoading={fileQuery.isLoading && !activeFile}
+              updateStatus={updateStatusQuery.data}
+              updateStatusLoading={updateStatusQuery.isLoading}
+              viewMode={viewMode}
+              editMode={editMode}
+              draft={draft}
+              setViewMode={setViewMode}
+              setEditMode={setEditMode}
+              setDraft={setDraft}
+              onCheckUpdates={() => {
+                void updateStatusQuery.refetch();
+              }}
+              checkUpdatesPending={updateStatusQuery.isFetching}
+              onInstallUpdate={() => installUpdate.mutate()}
+              installUpdatePending={installUpdate.isPending}
+              onSave={() => saveFile.mutate()}
+              savePending={saveFile.isPending}
+            />
+          )}
+          {selectedTeamSkill && (
+            <div className="min-w-0">
+              {teamSkillDetailQuery.isLoading ? (
+                <PageSkeleton variant="detail" />
+              ) : !teamSkillDetailQuery.data ? (
+                <EmptyState icon={Users} message="Select a team skill to inspect." />
+              ) : (
+                <>
+                  <div className="border-b border-border px-5 py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <h1 className="flex items-center gap-2 truncate text-2xl font-semibold">
+                          <Users className="h-5 w-5 shrink-0 text-muted-foreground" />
+                          {teamSkillDetailQuery.data.skillName}
+                        </h1>
+                        <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+                          {teamSkillDetailQuery.data.description}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                          <span className="rounded-full bg-accent px-2.5 py-0.5">{teamSkillDetailQuery.data.agentName}</span>
+                          <span className="rounded-full bg-accent px-2.5 py-0.5">{teamSkillDetailQuery.data.category}</span>
+                          {teamSkillDetailQuery.data.tags.map(t => (
+                            <span key={t} className="rounded-full bg-accent/60 px-2.5 py-0.5">{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground" onClick={() => { if (teamSkillEditMode) { setTeamSkillEditMode(false); } else { setTeamSkillDraft(teamSkillDetailQuery.data!.markdown); setTeamSkillEditMode(true); } }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                          {teamSkillEditMode ? "Stop editing" : "Edit"}
+                        </button>
+                        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => { deleteTeamSkillMutation.mutate({ agentId: selectedTeamSkill.agentId, category: selectedTeamSkill.category, skillName: selectedTeamSkill.skillName }); }} disabled={deleteTeamSkillMutation.isPending}>
+                          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="border-b border-border px-5 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-mono text-sm">SKILL.md</span>
+                      {teamSkillEditMode && (
+                        <div className="flex items-center gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => setTeamSkillEditMode(false)}>Cancel</Button>
+                          <Button size="sm" onClick={() => { updateTeamSkill.mutate({ agentId: selectedTeamSkill.agentId, category: selectedTeamSkill.category, skillName: selectedTeamSkill.skillName, markdown: teamSkillDraft }); }} disabled={updateTeamSkill.isPending}>
+                            <Save className="mr-1.5 h-3.5 w-3.5" />
+                            {updateTeamSkill.isPending ? "Saving..." : "Save"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="min-h-[560px] px-5 py-5">
+                    {teamSkillEditMode ? (
+                      <MarkdownEditor value={teamSkillDraft} onChange={setTeamSkillDraft} bordered={false} className="min-h-[520px]" />
+                    ) : (
+                      <MarkdownBody>{stripFrontmatter(teamSkillDetailQuery.data.markdown)}</MarkdownBody>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </>
