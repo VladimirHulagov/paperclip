@@ -562,7 +562,7 @@ function SourceGroupedList({
   })).filter(g => g.skills.length > 0);
 
   const filteredTeamSkills = teamSkills.filter(ts => {
-    const haystack = `${ts.skillName} ${ts.agentName} ${ts.category} ${ts.description} ${ts.tags.join(" ")}`.toLowerCase();
+    const haystack = `${ts.skillName} ${ts.agentName} ${ts.category} ${ts.description} ${(ts.tags ?? []).join(" ")}`.toLowerCase();
     return haystack.includes(filter);
   });
 
@@ -640,7 +640,7 @@ function SourceGroupedList({
                       <button key={`${ts.agentId}/${ts.category}/${ts.skillName}`} type="button" className={cn("flex w-full items-center gap-2 px-6 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent/30 hover:text-foreground", isSelected && "text-foreground bg-accent/20")} onClick={() => onSelectTeamSkill(ts.agentId, ts.category, ts.skillName)}>
                         <FileText className="h-3.5 w-3.5 shrink-0" />
                         <span className="min-w-0 truncate text-[13px] font-medium">{ts.skillName}</span>
-                        {ts.tags.length > 0 && <span className="text-[10px] text-muted-foreground truncate">{ts.tags.slice(0, 2).join(", ")}</span>}
+                        {(ts.tags ?? []).length > 0 && <span className="text-[10px] text-muted-foreground truncate">{(ts.tags ?? []).slice(0, 2).join(", ")}</span>}
                       </button>
                     );
                   })}
@@ -1466,7 +1466,7 @@ export function CompanySkills() {
                         <div className="mt-3 flex flex-wrap gap-2 text-xs">
                           <span className="rounded-full bg-accent px-2.5 py-0.5">{teamSkillDetailQuery.data.agentName}</span>
                           <span className="rounded-full bg-accent px-2.5 py-0.5">{teamSkillDetailQuery.data.category}</span>
-                          {teamSkillDetailQuery.data.tags.map(t => (
+                          {(teamSkillDetailQuery.data.tags ?? []).map(t => (
                             <span key={t} className="rounded-full bg-accent/60 px-2.5 py-0.5">{t}</span>
                           ))}
                         </div>
