@@ -31,11 +31,15 @@ export function companyRoleService(db: Db) {
   const sources = roleSourceService(db);
 
   return {
-    async list(companyId: string) {
+    async list(companyId: string, options: { includeHidden?: boolean } = {}) {
+      const conditions = [eq(companyRoles.companyId, companyId)];
+      if (!options.includeHidden) {
+        conditions.push(eq(companyRoles.hidden, false));
+      }
       const roles = await db
         .select()
         .from(companyRoles)
-        .where(eq(companyRoles.companyId, companyId))
+        .where(and(...conditions))
         .orderBy(companyRoles.name);
 
       const agentRows = await db
@@ -67,6 +71,7 @@ export function companyRoleService(db: Db) {
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
         assignedAgentCount: agentRoleCounts.get(r.key) || 0,
+        hidden: r.hidden,
       }));
     },
 
@@ -165,6 +170,14 @@ export function companyRoleService(db: Db) {
           const category = relativePath.split("/")[0] || "uncategorized";
           const key = `${slugify(source.name)}/${category}/${rawSlug}`;
 
+          const [existingRole] = await db
+            .select({ hidden: companyRoles.hidden })
+            .from(companyRoles)
+            .where(and(eq(companyRoles.companyId, companyId), eq(companyRoles.key, key)));
+          if (existingRole?.hidden) {
+            continue;
+          }
+
           const [row] = await db
             .insert(companyRoles)
             .values({
@@ -202,6 +215,52 @@ export function companyRoleService(db: Db) {
       }
 
       return { imported, warnings };
+    },
+
+    async setVisibility(companyId: string, roleId: string, hidden: boolean, force?: boolean) {
+      const [row] = await db
+        .select()
+        .from(companyRoles)
+        .where(and(eq(companyRoles.companyId, companyId), eq(companyRoles.id, roleId)));
+      if (!row) throw new Error("Role not found");
+
+      const agentRows = await db
+        .select({ id: agents.id, name: agents.name, adapterConfig: agents.adapterConfig })
+        .from(agents)
+        .where(eq(agents.companyId, companyId));
+
+      const assignedAgentCount = agentRows.filter((a) => {
+        const config = typeof a.adapterConfig === "object" && a.adapterConfig !== null
+          ? (a.adapterConfig as Record<string, unknown>)
+          : {};
+        return config.assignedRole === row.key;
+      }).length;
+
+      if (hidden && assignedAgentCount > 0 && !force) {
+        return { error: "Role is assigned to agents", assignedAgentCount };
+      }
+
+      if (hidden && assignedAgentCount > 0 && force) {
+        for (const agent of agentRows) {
+          const config = typeof agent.adapterConfig === "object" && agent.adapterConfig !== null
+            ? { ...(agent.adapterConfig as Record<string, unknown>) }
+            : {};
+          if (config.assignedRole === row.key) {
+            delete config.assignedRole;
+            await db
+              .update(agents)
+              .set({ adapterConfig: config })
+              .where(eq(agents.id, agent.id));
+          }
+        }
+      }
+
+      await db
+        .update(companyRoles)
+        .set({ hidden, updatedAt: new Date() })
+        .where(eq(companyRoles.id, roleId));
+
+      return { row, assignedAgentCount };
     },
 
     async resolveRoleKey(companyId: string, ref: string) {

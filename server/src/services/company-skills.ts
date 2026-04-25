@@ -1451,6 +1451,7 @@ function toCompanySkillListItem(skill: CompanySkill, attachedAgentCount: number)
     sourceLabel: source.sourceLabel,
     sourceBadge: source.sourceBadge,
     sourcePath: source.sourcePath,
+    hidden: skill.hidden,
   };
 }
 
@@ -1525,8 +1526,8 @@ export function companySkillService(db: Db) {
     }
   }
 
-  async function list(companyId: string): Promise<CompanySkillListItem[]> {
-    const rows = await listFull(companyId);
+  async function list(companyId: string, options: { includeHidden?: boolean } = {}): Promise<CompanySkillListItem[]> {
+    const rows = await listFull(companyId, options);
     const agentRows = await agents.list(companyId);
     return rows.map((skill) => {
       const attachedAgentCount = agentRows.filter((agent) => {
@@ -1537,12 +1538,16 @@ export function companySkillService(db: Db) {
     });
   }
 
-  async function listFull(companyId: string): Promise<CompanySkill[]> {
+  async function listFull(companyId: string, options: { includeHidden?: boolean } = {}): Promise<CompanySkill[]> {
     await ensureSkillInventoryCurrent(companyId);
+    const conditions = [eq(companySkills.companyId, companyId)];
+    if (!options.includeHidden) {
+      conditions.push(eq(companySkills.hidden, false));
+    }
     const rows = await db
       .select()
       .from(companySkills)
-      .where(eq(companySkills.companyId, companyId))
+      .where(and(...conditions))
       .orderBy(asc(companySkills.name), asc(companySkills.key));
     return rows.map((row) => toCompanySkill(row));
   }
@@ -2058,9 +2063,10 @@ export function companySkillService(db: Db) {
     options: RuntimeSkillEntryOptions = {},
   ): Promise<PaperclipSkillEntry[]> {
     const skills = await listFull(companyId);
+    const visibleSkills = skills.filter(s => !s.hidden);
 
     const out: PaperclipSkillEntry[] = [];
-    for (const skill of skills) {
+    for (const skill of visibleSkills) {
       const sourceKind = asString(getSkillMeta(skill).sourceKind);
       let source = normalizeSkillDirectory(skill);
       if (!source) {
@@ -2226,6 +2232,10 @@ export function companySkillService(db: Db) {
         out.push(existing);
         continue;
       }
+      if (existing && existing.hidden) {
+        out.push(existing);
+        continue;
+      }
 
       const metadata = {
         ...(skill.metadata ?? {}),
@@ -2365,6 +2375,54 @@ export function companySkillService(db: Db) {
     return { deletedCount: rows.length };
   }
 
+  async function setVisibility(companyId: string, skillId: string, hidden: boolean, force?: boolean) {
+    const row = await db
+      .select()
+      .from(companySkills)
+      .where(and(eq(companySkills.id, skillId), eq(companySkills.companyId, companyId)))
+      .then((rows) => rows[0] ?? null);
+    if (!row) throw notFound("Skill not found");
+
+    const skill = toCompanySkill(row);
+    const allSkills = await listFull(companyId, { includeHidden: true });
+    const agentRows = await agents.list(companyId);
+    const attachedAgentCount = agentRows.filter((agent) => {
+      const desiredSkills = resolveDesiredSkillKeys(allSkills, agent.adapterConfig as Record<string, unknown>);
+      return desiredSkills.includes(skill.key);
+    }).length;
+
+    if (hidden && attachedAgentCount > 0 && !force) {
+      return { error: "Skill is used by agents", attachedAgentCount };
+    }
+
+    if (hidden && attachedAgentCount > 0 && force) {
+      for (const agent of agentRows) {
+        const config = agent.adapterConfig as Record<string, unknown>;
+        const preference = readPaperclipSkillSyncPreference(config);
+        const referencesSkill = preference.desiredSkills.some((ref) => {
+          const resolved = resolveSkillReference(allSkills, ref);
+          return resolved.skill?.id === skillId;
+        });
+        if (referencesSkill) {
+          const filtered = preference.desiredSkills.filter((ref) => {
+            const resolved = resolveSkillReference(allSkills, ref);
+            return resolved.skill?.id !== skillId;
+          });
+          await agents.update(agent.id, {
+            adapterConfig: writePaperclipSkillSyncPreference(config, filtered),
+          });
+        }
+      }
+    }
+
+    await db
+      .update(companySkills)
+      .set({ hidden, updatedAt: new Date() })
+      .where(eq(companySkills.id, skillId));
+
+    return { skill, attachedAgentCount };
+  }
+
   return {
     list,
     listFull,
@@ -2386,5 +2444,6 @@ export function companySkillService(db: Db) {
     importPackageFiles,
     installUpdate,
     listRuntimeSkillEntries,
+    setVisibility,
   };
 }

@@ -7,6 +7,7 @@ import {
   companySkillFileUpdateSchema,
   companySkillImportSchema,
   companySkillProjectScanRequestSchema,
+  companySkillVisibilitySchema,
 } from "@paperclipai/shared";
 import { trackSkillImported } from "@paperclipai/shared/telemetry";
 import { validate } from "../middleware/validate.js";
@@ -86,7 +87,8 @@ export function companySkillRoutes(db: Db) {
   router.get("/companies/:companyId/skills", async (req, res) => {
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);
-    const result = await svc.list(companyId);
+    const includeHidden = req.query.includeHidden === "true";
+    const result = await svc.list(companyId, { includeHidden });
     res.json(result);
   });
 
@@ -290,6 +292,36 @@ export function companySkillRoutes(db: Db) {
 
     res.json(result);
   });
+
+  router.patch(
+    "/companies/:companyId/skills/:skillId",
+    validate(companySkillVisibilitySchema),
+    async (req, res) => {
+      const companyId = req.params.companyId as string;
+      const skillId = req.params.skillId as string;
+      await assertCanMutateCompanySkills(req, companyId);
+      const result = await svc.setVisibility(companyId, skillId, req.body.hidden, req.body.force);
+      if ("error" in result) {
+        res.status(409).json({ error: result.error, attachedAgentCount: result.attachedAgentCount });
+        return;
+      }
+
+      const actor = getActorInfo(req);
+      await logActivity(db, {
+        companyId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
+        agentId: actor.agentId,
+        runId: actor.runId,
+        action: req.body.hidden ? "company.skill_hidden" : "company.skill_restored",
+        entityType: "company_skill",
+        entityId: skillId,
+        details: { hidden: req.body.hidden },
+      });
+
+      res.json({ hidden: req.body.hidden });
+    },
+  );
 
   router.post("/companies/:companyId/skills/:skillId/install-update", async (req, res) => {
     const companyId = req.params.companyId as string;

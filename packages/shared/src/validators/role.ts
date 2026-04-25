@@ -28,6 +28,7 @@ export const companyRoleSchema = z.object({
   metadata: z.record(z.unknown()).nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  hidden: z.boolean(),
 });
 
 export const companyRoleListItemSchema = z.object({
@@ -43,6 +44,7 @@ export const companyRoleListItemSchema = z.object({
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
   assignedAgentCount: z.number().int().nonnegative(),
+  hidden: z.boolean(),
 });
 
 export const companyRoleUsageAgentSchema = z.object({
@@ -100,3 +102,10 @@ export const roleSourceCreateSchema = z.object({
 export type RoleSourceCreate = z.infer<typeof roleSourceCreateSchema>;
 export type CompanyRoleCreate = z.infer<typeof companyRoleCreateSchema>;
 export type CompanyRoleImport = z.infer<typeof companyRoleImportSchema>;
+
+export const companyRoleVisibilitySchema = z.object({
+  hidden: z.boolean(),
+  force: z.boolean().optional(),
+});
+
+export type CompanyRoleVisibility = z.infer<typeof companyRoleVisibilitySchema>;

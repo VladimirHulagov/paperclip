@@ -27,6 +27,8 @@ export const roleSourcesApi = {
 export const companyRolesApi = {
   list: (companyId: string) =>
     api.get<CompanyRoleListItem[]>(`/companies/${encodeURIComponent(companyId)}/roles`),
+  listIncludingHidden: (companyId: string) =>
+    api.get<CompanyRoleListItem[]>(`/companies/${encodeURIComponent(companyId)}/roles?includeHidden=true`),
 
   detail: (companyId: string, roleId: string) =>
     api.get<CompanyRoleDetail>(
@@ -38,6 +40,11 @@ export const companyRolesApi = {
 
   delete: (companyId: string, roleId: string) =>
     api.delete<void>(`/companies/${encodeURIComponent(companyId)}/roles/${encodeURIComponent(roleId)}`),
+  setVisibility: (companyId: string, roleId: string, hidden: boolean, force?: boolean) =>
+    api.patch<{ hidden: boolean } | { error: string; assignedAgentCount: number }>(
+      `/companies/${encodeURIComponent(companyId)}/roles/${encodeURIComponent(roleId)}`,
+      { hidden, force },
+    ),
 
   importFromSource: (companyId: string, sourceId: string, paths: string[]) =>
     api.post<CompanyRoleImportResult>(

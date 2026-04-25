@@ -16,6 +16,8 @@ import { api } from "./client";
 export const companySkillsApi = {
   list: (companyId: string) =>
     api.get<CompanySkillListItem[]>(`/companies/${encodeURIComponent(companyId)}/skills`),
+  listIncludingHidden: (companyId: string) =>
+    api.get<CompanySkillListItem[]>(`/companies/${encodeURIComponent(companyId)}/skills?includeHidden=true`),
   detail: (companyId: string, skillId: string) =>
     api.get<CompanySkillDetail>(
       `/companies/${encodeURIComponent(companyId)}/skills/${encodeURIComponent(skillId)}`,
@@ -52,6 +54,11 @@ export const companySkillsApi = {
     api.post<CompanySkill>(
       `/companies/${encodeURIComponent(companyId)}/skills/${encodeURIComponent(skillId)}/install-update`,
       {},
+    ),
+  setVisibility: (companyId: string, skillId: string, hidden: boolean, force?: boolean) =>
+    api.patch<{ hidden: boolean } | { error: string; attachedAgentCount: number }>(
+      `/companies/${encodeURIComponent(companyId)}/skills/${encodeURIComponent(skillId)}`,
+      { hidden, force },
     ),
   hiddenSources: (companyId: string) =>
     api.get<{ source_type: string; source_locator: string }[]>(

@@ -28,6 +28,7 @@ export interface CompanySkill {
   metadata: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
+  hidden: boolean;
 }
 
 export interface CompanySkillListItem {
@@ -51,6 +52,7 @@ export interface CompanySkillListItem {
   sourceLabel: string | null;
   sourceBadge: CompanySkillSourceBadge;
   sourcePath: string | null;
+  hidden: boolean;
 }
 
 export interface CompanySkillUsageAgent {

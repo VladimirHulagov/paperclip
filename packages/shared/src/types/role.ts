@@ -26,6 +26,7 @@ export interface CompanyRole {
   metadata: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
+  hidden: boolean;
 }
 
 export interface CompanyRoleListItem {
@@ -41,6 +42,7 @@ export interface CompanyRoleListItem {
   createdAt: Date;
   updatedAt: Date;
   assignedAgentCount: number;
+  hidden: boolean;
 }
 
 export interface CompanyRoleDetail extends CompanyRole {

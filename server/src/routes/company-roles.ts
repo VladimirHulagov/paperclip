@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Db } from "@paperclipai/db";
-import { companyRoleCreateSchema, companyRoleImportSchema } from "@paperclipai/shared";
+import { companyRoleCreateSchema, companyRoleImportSchema, companyRoleVisibilitySchema } from "@paperclipai/shared";
 import { validate } from "../middleware/validate.js";
 import { companyRoleService } from "../services/company-roles.js";
 import { assertCompanyAccess, getActorInfo } from "./authz.js";
@@ -13,7 +13,8 @@ export function companyRoleRoutes(db: Db) {
   router.get("/companies/:companyId/roles", async (req, res) => {
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);
-    const roles = await svc.list(companyId);
+    const includeHidden = req.query.includeHidden === "true";
+    const roles = await svc.list(companyId, { includeHidden });
     res.json(roles);
   });
 
@@ -70,6 +71,36 @@ export function companyRoleRoutes(db: Db) {
     });
     res.status(204).end();
   });
+
+  router.patch(
+    "/companies/:companyId/roles/:roleId",
+    validate(companyRoleVisibilitySchema),
+    async (req, res) => {
+      const companyId = req.params.companyId as string;
+      const roleId = req.params.roleId as string;
+      assertCompanyAccess(req, companyId);
+      const result = await svc.setVisibility(companyId, roleId, req.body.hidden, req.body.force);
+      if ("error" in result) {
+        res.status(409).json({ error: result.error, assignedAgentCount: result.assignedAgentCount });
+        return;
+      }
+
+      const actor = getActorInfo(req);
+      await logActivity(db, {
+        companyId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
+        agentId: actor.agentId,
+        runId: actor.runId,
+        action: req.body.hidden ? "company.role_hidden" : "company.role_restored",
+        entityType: "company_role",
+        entityId: roleId,
+        details: { hidden: req.body.hidden },
+      });
+
+      res.json({ hidden: req.body.hidden });
+    },
+  );
 
   router.post(
     "/companies/:companyId/roles/import",

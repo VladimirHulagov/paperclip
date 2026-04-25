@@ -14,12 +14,13 @@ import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "../lib/utils";
-import { ChevronRight, ChevronDown, Folder, FolderOpen, Plus, Trash2, Download, Search, Users } from "lucide-react";
+import { ChevronRight, ChevronDown, Folder, FolderOpen, Plus, Trash2, Download, Search, Users, EyeOff } from "lucide-react";
 
 export function CompanyRoles() {
   const queryClient = useQueryClient();
@@ -38,6 +39,8 @@ export function CompanyRoles() {
   const [selectedImportPaths, setSelectedImportPaths] = useState<Set<string>>(new Set());
   const [importSearch, setImportSearch] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [showHidden, setShowHidden] = useState(false);
+  const [confirmHideRole, setConfirmHideRole] = useState<{ roleId: string; roleName: string; agentCount: number } | null>(null);
 
   useEffect(() => {
     setBreadcrumbs([
@@ -48,7 +51,9 @@ export function CompanyRoles() {
 
   const rolesQuery = useQuery({
     queryKey: queryKeys.companyRoles.list(selectedCompanyId ?? ""),
-    queryFn: () => companyRolesApi.list(selectedCompanyId!),
+    queryFn: () => showHidden
+      ? companyRolesApi.listIncludingHidden(selectedCompanyId!)
+      : companyRolesApi.list(selectedCompanyId!),
     enabled: Boolean(selectedCompanyId),
   });
 
@@ -186,6 +191,27 @@ export function CompanyRoles() {
     },
   });
 
+  const setRoleVisibility = useMutation({
+    mutationFn: ({ roleId, hidden, force }: { roleId: string; hidden: boolean; force?: boolean }) =>
+      companyRolesApi.setVisibility(selectedCompanyId!, roleId, hidden, force),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.companyRoles.list(selectedCompanyId!) });
+      setConfirmHideRole(null);
+      if ("error" in result) return;
+      pushToast({
+        tone: "success",
+        title: result.hidden ? "Role excluded" : "Role restored",
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        tone: "error",
+        title: "Failed to update role visibility",
+        body: error instanceof Error ? error.message : "Unknown error",
+      });
+    },
+  });
+
   if (!selectedCompanyId) {
     return <EmptyState icon={Users} message="Select a company to manage roles." />;
   }
@@ -223,6 +249,17 @@ export function CompanyRoles() {
               placeholder="Filter roles"
               className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
+          </div>
+          <div className="mt-3 flex items-center gap-2 border-b border-border pb-2">
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showHidden}
+                onChange={(e) => setShowHidden(e.target.checked)}
+                className="rounded"
+              />
+              Show excluded
+            </label>
           </div>
         </div>
 
@@ -275,21 +312,45 @@ export function CompanyRoles() {
                 {category}
               </div>
               {roles.map((role) => (
-                <button
-                  key={role.id}
-                  type="button"
-                  className={cn(
-                    "w-full flex items-center gap-2 px-4 py-2 text-left text-sm hover:bg-accent/30 transition-colors",
-                    role.id === selectedRoleId && "bg-accent text-foreground",
+                <div key={role.id} className="group flex items-center">
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex-1 flex items-center gap-2 px-4 py-2 text-left text-sm hover:bg-accent/30 transition-colors",
+                      role.id === selectedRoleId && "bg-accent text-foreground",
+                      role.hidden && "opacity-50",
+                    )}
+                    onClick={() => setSelectedRoleId(role.id)}
+                  >
+                    {role.hidden ? (
+                      <EyeOff className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    ) : (
+                      <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    )}
+                    <span className={cn("truncate flex-1", role.hidden && "line-through")}>{role.name}</span>
+                    {role.assignedAgentCount > 0 && !role.hidden && (
+                      <span className="text-xs text-muted-foreground">{role.assignedAgentCount}</span>
+                    )}
+                  </button>
+                  {role.hidden ? (
+                    <button
+                      type="button"
+                      className="px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => setRoleVisibility.mutate({ roleId: role.id, hidden: false })}
+                    >
+                      Restore
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="px-3 py-2 text-muted-foreground opacity-0 group-hover:opacity-70 hover:text-foreground"
+                      onClick={() => setConfirmHideRole({ roleId: role.id, roleName: role.name, agentCount: role.assignedAgentCount })}
+                      title="Exclude from sync"
+                    >
+                      <EyeOff className="h-3.5 w-3.5" />
+                    </button>
                   )}
-                  onClick={() => setSelectedRoleId(role.id)}
-                >
-                  <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <span className="truncate flex-1">{role.name}</span>
-                  {role.assignedAgentCount > 0 && (
-                    <span className="text-xs text-muted-foreground">{role.assignedAgentCount}</span>
-                  )}
-                </button>
+                </div>
               ))}
             </div>
           ))
@@ -359,6 +420,34 @@ export function CompanyRoles() {
           </div>
         )}
       </div>
+
+      <Dialog open={confirmHideRole !== null} onOpenChange={() => setConfirmHideRole(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Exclude role from sync</DialogTitle>
+            <DialogDescription>
+              This role will be excluded from synchronization and agent provisioning.
+              {confirmHideRole && confirmHideRole.agentCount > 0 && (
+                <> It is currently assigned to <strong>{confirmHideRole.agentCount} agent{confirmHideRole.agentCount === 1 ? "" : "s"}</strong> and will be unassigned.</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmHideRole(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => {
+              if (confirmHideRole) {
+                setRoleVisibility.mutate({
+                  roleId: confirmHideRole.roleId,
+                  hidden: true,
+                  force: confirmHideRole.agentCount > 0,
+                });
+              }
+            }} disabled={setRoleVisibility.isPending}>
+              {setRoleVisibility.isPending ? "Excluding..." : "Exclude"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ADD SOURCE DIALOG */}
       <Dialog open={addSourceOpen} onOpenChange={setAddSourceOpen}>
