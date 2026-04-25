@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   jsonb,
+  boolean,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -28,6 +29,7 @@ export const companyRoles = pgTable(
     metadata: jsonb("metadata").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    hidden: boolean("hidden").notNull().default(false),
   },
   (table) => ({
     companyKeyUniqueIdx: uniqueIndex("company_roles_company_key_idx").on(
