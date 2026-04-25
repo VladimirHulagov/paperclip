@@ -11,6 +11,10 @@ export const queryKeys = {
       ["company-skills", companyId, skillId, "update-status"] as const,
     file: (companyId: string, skillId: string, relativePath: string) =>
       ["company-skills", companyId, skillId, "file", relativePath] as const,
+    hiddenSources: (companyId: string) => ["company-skills", companyId, "hidden-sources"] as const,
+    teamSkills: (companyId: string) => ["company-skills", companyId, "team-skills"] as const,
+    teamSkillDetail: (companyId: string, agentId: string, category: string, skillName: string) =>
+      ["company-skills", companyId, "team-skills", agentId, category, skillName] as const,
   },
   agents: {
     list: (companyId: string) => ["agents", companyId] as const,
