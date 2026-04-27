@@ -50,7 +50,7 @@ export function CompanyRoles() {
   }, [selectedCompany?.name, setBreadcrumbs]);
 
   const rolesQuery = useQuery({
-    queryKey: queryKeys.companyRoles.list(selectedCompanyId ?? ""),
+    queryKey: [...queryKeys.companyRoles.list(selectedCompanyId ?? ""), showHidden],
     queryFn: () => showHidden
       ? companyRolesApi.listIncludingHidden(selectedCompanyId!)
       : companyRolesApi.list(selectedCompanyId!),

@@ -91,6 +91,7 @@ export function Layout() {
     queryKey: queryKeys.instance.generalSettings,
     queryFn: () => instanceSettingsApi.getGeneral(),
   }).data?.keyboardShortcuts === true;
+  const generalSettingsValue = useMemo(() => ({ keyboardShortcutsEnabled }), [keyboardShortcutsEnabled]);
 
   useEffect(() => {
     if (companiesLoading || onboardingTriggered.current) return;
@@ -266,7 +267,7 @@ export function Layout() {
   }, [location.hash, location.pathname, location.search]);
 
   return (
-    <GeneralSettingsProvider value={{ keyboardShortcutsEnabled }}>
+    <GeneralSettingsProvider value={generalSettingsValue}>
       <div
       className={cn(
         "bg-background text-foreground pt-[env(safe-area-inset-top)]",

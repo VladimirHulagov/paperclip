@@ -974,7 +974,7 @@ export function CompanySkills() {
   }, [routeSkillId, setBreadcrumbs]);
 
   const skillsQuery = useQuery({
-    queryKey: queryKeys.companySkills.list(selectedCompanyId ?? ""),
+    queryKey: [...queryKeys.companySkills.list(selectedCompanyId ?? ""), showHidden],
     queryFn: () => showHidden
       ? companySkillsApi.listIncludingHidden(selectedCompanyId!)
       : companySkillsApi.list(selectedCompanyId!),
