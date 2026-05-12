@@ -428,3 +428,14 @@ export {
   type SetPluginState,
   type ListPluginState,
 } from "./plugin.js";
+
+export {
+  companyRoleCreateSchema,
+  companyRoleImportSchema,
+  companyRoleVisibilitySchema,
+  roleSourceCreateSchema,
+  type RoleSourceCreate,
+  type CompanyRoleCreate,
+  type CompanyRoleImport,
+  type CompanyRoleVisibility,
+} from "./role.js";

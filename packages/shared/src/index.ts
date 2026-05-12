@@ -1013,6 +1013,17 @@ export {
   type ListPluginState,
 } from "./validators/index.js";
 
+export {
+  companyRoleCreateSchema,
+  companyRoleImportSchema,
+  companyRoleVisibilitySchema,
+  roleSourceCreateSchema,
+  type RoleSourceCreate,
+  type CompanyRoleCreate,
+  type CompanyRoleImport,
+  type CompanyRoleVisibility,
+} from "./validators/role.js";
+
 export { API_PREFIX, API } from "./api.js";
 export { normalizeAgentUrlKey, deriveAgentUrlKey, isUuidLike } from "./agent-url-key.js";
 export { deriveProjectUrlKey, normalizeProjectUrlKey, hasNonAsciiContent } from "./project-url-key.js";
