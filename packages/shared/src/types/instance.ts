@@ -19,11 +19,15 @@ export const DEFAULT_BACKUP_RETENTION: BackupRetentionPolicy = {
   monthlyMonths: 1,
 };
 
+export type TimeFormat = "12h" | "24h";
+
 export interface InstanceGeneralSettings {
   censorUsernameInLogs: boolean;
   keyboardShortcuts: boolean;
   feedbackDataSharingPreference: FeedbackDataSharingPreference;
   backupRetention: BackupRetentionPolicy;
+  timezone: string;
+  timeFormat: TimeFormat;
 }
 
 export interface InstanceExperimentalSettings {
@@ -38,8 +42,40 @@ export interface InstanceSettings {
   id: string;
   general: InstanceGeneralSettings;
   experimental: InstanceExperimentalSettings;
+  messaging: InstanceMessagingSettings;
+  skillsSync: InstanceSkillsSyncSettings;
+  workingHours: WorkingHours;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface InstanceMessagingTelegramSettings {
+  enabled: boolean;
+  botToken?: string;
+  chatId?: string;
+  allowedUsers?: string;
+  defaultTimeout: number;
+}
+
+export interface InstanceMessagingSettings {
+  telegram?: InstanceMessagingTelegramSettings;
+}
+
+export interface InstanceSkillsSyncSettings {
+  repoUrl: string;
+  branch: string;
+  path: string;
+  token: string;
+  author: string;
+}
+
+export type DayOfWeek = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+export interface WorkingHours {
+  enabled: boolean;
+  start: string;
+  end: string;
+  days: DayOfWeek[];
 }
 
 export interface IssueGraphLivenessAutoRecoveryPreviewItem {

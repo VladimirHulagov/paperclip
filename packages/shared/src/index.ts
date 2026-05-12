@@ -1097,3 +1097,8 @@ export type {
   EnvironmentProviderCapability,
   EnvironmentSupportStatus,
 } from "./environment-support.js";
+
+export {
+  issueChecklistItemSchema,
+  issueChecklistSchema,
+} from "./validators/issue.js";

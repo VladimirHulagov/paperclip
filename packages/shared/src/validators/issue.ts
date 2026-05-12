@@ -265,6 +265,13 @@ export const createIssueLabelSchema = z.object({
 
 export type CreateIssueLabel = z.infer<typeof createIssueLabelSchema>;
 
+export const issueChecklistItemSchema = z.object({
+  text: z.string().max(200),
+  done: z.boolean(),
+});
+
+export const issueChecklistSchema = z.array(issueChecklistItemSchema).max(20);
+
 export const updateIssueSchema = createIssueBaseSchema.partial().extend({
   requestDepth: issueRequestDepthInputSchema.optional(),
   assigneeAgentId: z.string().trim().min(1).optional().nullable(),
@@ -274,6 +281,7 @@ export const updateIssueSchema = createIssueBaseSchema.partial().extend({
   resume: z.boolean().optional(),
   interrupt: z.boolean().optional(),
   hiddenAt: z.string().datetime().nullable().optional(),
+  checklist: issueChecklistSchema.nullable().optional(),
 });
 
 export type UpdateIssue = z.infer<typeof updateIssueSchema>;

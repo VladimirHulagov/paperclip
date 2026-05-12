@@ -30,6 +30,12 @@ export type {
   BackupRetentionPolicy,
   IssueGraphLivenessAutoRecoveryPreview,
   IssueGraphLivenessAutoRecoveryPreviewItem,
+  TimeFormat,
+  InstanceMessagingSettings,
+  InstanceMessagingTelegramSettings,
+  InstanceSkillsSyncSettings,
+  WorkingHours,
+  DayOfWeek,
 } from "./instance.js";
 export {
   DAILY_RETENTION_PRESETS,
@@ -214,7 +220,22 @@ export type {
   IssueAncestorGoal,
   IssueAttachment,
   IssueLabel,
+  IssueChecklistItem,
 } from "./issue.js";
+export type {
+  RoleSource,
+  CompanyRole,
+  CompanyRoleListItem,
+  CompanyRoleDetail,
+  CompanyRoleUsageAgent,
+  RoleSourceBrowseEntry,
+  RoleSourceBrowseResult,
+  CompanyRoleCreateRequest,
+  CompanyRoleImportRequest,
+  CompanyRoleImportResult,
+  RoleSourceCreateRequest,
+  RoleSourceType,
+} from "./role.js";
 export type {
   IssueTreeControlPreview,
   IssueTreeHold,

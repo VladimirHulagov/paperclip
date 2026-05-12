@@ -322,6 +322,11 @@ export interface IssueExecutionDecision {
   updatedAt: Date;
 }
 
+export interface IssueChecklistItem {
+  text: string;
+  done: boolean;
+}
+
 export interface Issue {
   id: string;
   companyId: string;
@@ -384,6 +389,7 @@ export interface Issue {
   currentExecutionWorkspace?: ExecutionWorkspace | null;
   workProducts?: IssueWorkProduct[];
   mentionedProjects?: Project[];
+  checklist?: IssueChecklistItem[] | null;
   myLastTouchAt?: Date | null;
   lastExternalCommentAt?: Date | null;
   lastActivityAt?: Date | null;
