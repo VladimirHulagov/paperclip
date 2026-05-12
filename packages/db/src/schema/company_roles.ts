@@ -9,30 +9,36 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { companies } from "./companies.js";
+import { roleSources } from "./role_sources.js";
 
-export const companySkills = pgTable(
-  "company_skills",
+export const companyRoles = pgTable(
+  "company_roles",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     companyId: uuid("company_id").notNull().references(() => companies.id),
+    sourceId: uuid("source_id").references(() => roleSources.id),
     key: text("key").notNull(),
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     description: text("description"),
+    category: text("category"),
     markdown: text("markdown").notNull(),
-    sourceType: text("source_type").notNull().default("local_path"),
-    sourceLocator: text("source_locator"),
+    sourceType: text("source_type").notNull().default("local"),
     sourceRef: text("source_ref"),
-    trustLevel: text("trust_level").notNull().default("markdown_only"),
-    compatibility: text("compatibility").notNull().default("compatible"),
-    fileInventory: jsonb("file_inventory").$type<Array<Record<string, unknown>>>().notNull().default([]),
+    sourcePath: text("source_path"),
     metadata: jsonb("metadata").$type<Record<string, unknown>>(),
-    hidden: boolean("hidden").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    hidden: boolean("hidden").notNull().default(false),
   },
   (table) => ({
-    companyKeyUniqueIdx: uniqueIndex("company_skills_company_key_idx").on(table.companyId, table.key),
-    companyNameIdx: index("company_skills_company_name_idx").on(table.companyId, table.name),
+    companyKeyUniqueIdx: uniqueIndex("company_roles_company_key_idx").on(
+      table.companyId,
+      table.key,
+    ),
+    companyNameIdx: index("company_roles_company_name_idx").on(
+      table.companyId,
+      table.name,
+    ),
   }),
 );
