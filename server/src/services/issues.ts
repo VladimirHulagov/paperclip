@@ -1568,6 +1568,7 @@ const issueListSelect = {
   completedAt: issues.completedAt,
   cancelledAt: issues.cancelledAt,
   hiddenAt: issues.hiddenAt,
+  checklist: issues.checklist,
   createdAt: issues.createdAt,
   updatedAt: issues.updatedAt,
 };
