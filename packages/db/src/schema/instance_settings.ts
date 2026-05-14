@@ -8,6 +8,7 @@ export const instanceSettings = pgTable(
     general: jsonb("general").$type<Record<string, unknown>>().notNull().default({}),
     experimental: jsonb("experimental").$type<Record<string, unknown>>().notNull().default({}),
     messaging: jsonb("messaging").$type<Record<string, unknown>>().notNull().default({}),
+    skillsSync: jsonb("skills_sync").$type<Record<string, unknown>>().notNull().default({}),
     workingHours: jsonb("working_hours").$type<Record<string, unknown>>().notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

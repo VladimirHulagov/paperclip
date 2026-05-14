@@ -9,6 +9,18 @@ export {
   type InstanceExperimentalSettings,
   type PatchInstanceExperimentalSettings,
   type IssueGraphLivenessAutoRecoveryRequest,
+  messagingSettingsSchema,
+  patchMessagingSettingsSchema,
+  type MessagingSettings,
+  type PatchMessagingSettings,
+  skillsSyncSettingsSchema,
+  patchSkillsSyncSettingsSchema,
+  type SkillsSyncSettings,
+  type PatchSkillsSyncSettings,
+  workingHoursSchema,
+  patchWorkingHoursSchema,
+  type WorkingHours,
+  type PatchWorkingHours,
 } from "./instance.js";
 
 export {

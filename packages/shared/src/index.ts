@@ -675,6 +675,18 @@ export {
   issueGraphLivenessAutoRecoveryRequestSchema,
   type PatchInstanceExperimentalSettings,
   type IssueGraphLivenessAutoRecoveryRequest,
+  messagingSettingsSchema,
+  patchMessagingSettingsSchema,
+  type MessagingSettings,
+  type PatchMessagingSettings,
+  skillsSyncSettingsSchema,
+  patchSkillsSyncSettingsSchema,
+  type SkillsSyncSettings,
+  type PatchSkillsSyncSettings,
+  workingHoursSchema,
+  patchWorkingHoursSchema,
+  type WorkingHours as WorkingHoursSettings,
+  type PatchWorkingHours,
 } from "./validators/index.js";
 
 export {

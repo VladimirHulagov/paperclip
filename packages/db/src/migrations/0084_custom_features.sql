@@ -45,6 +45,9 @@ ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "checklist" jsonb;
 -- Hidden sources for skills
 ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "hidden_sources" jsonb DEFAULT '[]';
 
+-- Skills sync
+ALTER TABLE "instance_settings" ADD COLUMN IF NOT EXISTS "skills_sync" jsonb NOT NULL DEFAULT '{}';
+
 -- Working hours
 ALTER TABLE "instance_settings" ADD COLUMN IF NOT EXISTS "working_hours" jsonb NOT NULL DEFAULT '{}';
 

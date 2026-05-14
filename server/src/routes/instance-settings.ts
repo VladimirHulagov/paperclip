@@ -4,6 +4,9 @@ import {
   issueGraphLivenessAutoRecoveryRequestSchema,
   patchInstanceExperimentalSettingsSchema,
   patchInstanceGeneralSettingsSchema,
+  patchMessagingSettingsSchema,
+  patchSkillsSyncSettingsSchema,
+  patchWorkingHoursSchema,
 } from "@paperclipai/shared";
 import { forbidden } from "../errors.js";
 import { validate } from "../middleware/validate.js";
@@ -144,6 +147,108 @@ export function instanceSettingsRoutes(db: Db) {
         ),
       );
       res.json(result);
+    },
+  );
+
+  router.get("/instance/settings/messaging", async (req, res) => {
+    assertBoardOrgAccess(req);
+    res.json(await svc.getMessaging());
+  });
+
+  router.patch(
+    "/instance/settings/messaging",
+    validate(patchMessagingSettingsSchema),
+    async (req, res) => {
+      assertCanManageInstanceSettings(req);
+      const updated = await svc.updateMessaging(req.body);
+      const actor = getActorInfo(req);
+      const companyIds = await svc.listCompanyIds();
+      await Promise.all(
+        companyIds.map((companyId) =>
+          logActivity(db, {
+            companyId,
+            actorType: actor.actorType,
+            actorId: actor.actorId,
+            agentId: actor.agentId,
+            runId: actor.runId,
+            action: "instance.settings.messaging_updated",
+            entityType: "instance_settings",
+            entityId: updated.id,
+            details: { changedKeys: Object.keys(req.body).sort() },
+          }),
+        ),
+      );
+      res.json(updated.messaging);
+    },
+  );
+
+  router.get("/instance/settings/skills-sync", async (req, res) => {
+    assertBoardOrgAccess(req);
+    const settings = await svc.getSkillsSync();
+    res.json({ ...settings, token: settings.token ? "••••••••" : "" });
+  });
+
+  router.patch(
+    "/instance/settings/skills-sync",
+    validate(patchSkillsSyncSettingsSchema),
+    async (req, res) => {
+      assertCanManageInstanceSettings(req);
+      const updated = await svc.updateSkillsSync(req.body);
+      const actor = getActorInfo(req);
+      const companyIds = await svc.listCompanyIds();
+      await Promise.all(
+        companyIds.map((companyId) =>
+          logActivity(db, {
+            companyId,
+            actorType: actor.actorType,
+            actorId: actor.actorId,
+            agentId: actor.agentId,
+            runId: actor.runId,
+            action: "instance.settings.skills_sync_updated",
+            entityType: "instance_settings",
+            entityId: updated.id,
+            details: { changedKeys: Object.keys(req.body).sort() },
+          }),
+        ),
+      );
+      res.json({ ...updated.skillsSync, token: updated.skillsSync.token ? "••••••••" : "" });
+    },
+  );
+
+  router.post("/instance/settings/skills-sync/trigger", async (req, res) => {
+    assertCanManageInstanceSettings(req);
+    res.json({ triggered: true, message: "Sync will run on next orchestrator cycle." });
+  });
+
+  router.get("/instance/settings/working-hours", async (req, res) => {
+    assertBoardOrgAccess(req);
+    res.json(await svc.getWorkingHours());
+  });
+
+  router.patch(
+    "/instance/settings/working-hours",
+    validate(patchWorkingHoursSchema),
+    async (req, res) => {
+      assertCanManageInstanceSettings(req);
+      const updated = await svc.updateWorkingHours(req.body);
+      const actor = getActorInfo(req);
+      const companyIds = await svc.listCompanyIds();
+      await Promise.all(
+        companyIds.map((companyId) =>
+          logActivity(db, {
+            companyId,
+            actorType: actor.actorType,
+            actorId: actor.actorId,
+            agentId: actor.agentId,
+            runId: actor.runId,
+            action: "instance.settings.working_hours_updated",
+            entityType: "instance_settings",
+            entityId: updated.id,
+            details: { changedKeys: Object.keys(req.body).sort() },
+          }),
+        ),
+      );
+      res.json(updated.workingHours);
     },
   );
 

@@ -167,6 +167,7 @@ function selectCompanySkillColumns() {
     compatibility: companySkills.compatibility,
     fileInventory: companySkills.fileInventory,
     metadata: companySkills.metadata,
+    hidden: companySkills.hidden,
     createdAt: companySkills.createdAt,
     updatedAt: companySkills.updatedAt,
   };

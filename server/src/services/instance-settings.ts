@@ -8,9 +8,16 @@ import {
   type InstanceGeneralSettings,
   instanceExperimentalSettingsSchema,
   type InstanceExperimentalSettings,
+  messagingSettingsSchema,
+  type MessagingSettings,
+  skillsSyncSettingsSchema,
+  type SkillsSyncSettings,
   type PatchInstanceGeneralSettings,
   type InstanceSettings,
   type PatchInstanceExperimentalSettings,
+  workingHoursSchema,
+  type WorkingHoursSettings as WorkingHoursType,
+  type PatchWorkingHours,
 } from "@paperclipai/shared";
 import { eq } from "drizzle-orm";
 
@@ -25,6 +32,8 @@ function normalizeGeneralSettings(raw: unknown): InstanceGeneralSettings {
       feedbackDataSharingPreference:
         parsed.data.feedbackDataSharingPreference ?? DEFAULT_FEEDBACK_DATA_SHARING_PREFERENCE,
       backupRetention: parsed.data.backupRetention ?? DEFAULT_BACKUP_RETENTION,
+      timezone: parsed.data.timezone ?? "UTC",
+      timeFormat: parsed.data.timeFormat ?? "24h",
     };
   }
   return {
@@ -32,6 +41,8 @@ function normalizeGeneralSettings(raw: unknown): InstanceGeneralSettings {
     keyboardShortcuts: false,
     feedbackDataSharingPreference: DEFAULT_FEEDBACK_DATA_SHARING_PREFERENCE,
     backupRetention: DEFAULT_BACKUP_RETENTION,
+    timezone: "UTC",
+    timeFormat: "24h",
   };
 }
 
@@ -58,11 +69,32 @@ function normalizeExperimentalSettings(raw: unknown): InstanceExperimentalSettin
   };
 }
 
+function normalizeMessagingSettings(raw: unknown): MessagingSettings {
+  const parsed = messagingSettingsSchema.safeParse(raw ?? {});
+  if (parsed.success) return parsed.data;
+  return {};
+}
+
+function normalizeSkillsSyncSettings(raw: unknown): SkillsSyncSettings {
+  const parsed = skillsSyncSettingsSchema.safeParse(raw ?? {});
+  if (parsed.success) return parsed.data;
+  return { repoUrl: "", branch: "main", path: "skills/", token: "", author: "Orchestrator <orchestrator@hermes>" };
+}
+
+function normalizeWorkingHoursSettings(raw: unknown): WorkingHoursType {
+  const parsed = workingHoursSchema.safeParse(raw ?? {});
+  if (parsed.success) return parsed.data;
+  return { enabled: false, start: "09:00", end: "18:00", days: ["mon", "tue", "wed", "thu", "fri"] };
+}
+
 function toInstanceSettings(row: typeof instanceSettings.$inferSelect): InstanceSettings {
   return {
     id: row.id,
     general: normalizeGeneralSettings(row.general),
     experimental: normalizeExperimentalSettings(row.experimental),
+    messaging: normalizeMessagingSettings(row.messaging),
+    skillsSync: normalizeSkillsSyncSettings(row.skillsSync),
+    workingHours: normalizeWorkingHoursSettings(row.workingHours),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -151,6 +183,62 @@ export function instanceSettingsService(db: Db) {
           experimental: { ...nextExperimental },
           updatedAt: now,
         })
+        .where(eq(instanceSettings.id, current.id))
+        .returning();
+      return toInstanceSettings(updated ?? current);
+    },
+
+    getMessaging: async (): Promise<MessagingSettings> => {
+      const row = await getOrCreateRow();
+      return normalizeMessagingSettings(row.messaging);
+    },
+
+    updateMessaging: async (patch: MessagingSettings): Promise<InstanceSettings> => {
+      const current = await getOrCreateRow();
+      const now = new Date();
+      const [updated] = await db
+        .update(instanceSettings)
+        .set({ messaging: { ...patch }, updatedAt: now })
+        .where(eq(instanceSettings.id, current.id))
+        .returning();
+      return toInstanceSettings(updated ?? current);
+    },
+
+    getSkillsSync: async (): Promise<SkillsSyncSettings> => {
+      const row = await getOrCreateRow();
+      return normalizeSkillsSyncSettings(row.skillsSync);
+    },
+
+    updateSkillsSync: async (patch: Partial<SkillsSyncSettings>): Promise<InstanceSettings> => {
+      const current = await getOrCreateRow();
+      const next = normalizeSkillsSyncSettings({
+        ...normalizeSkillsSyncSettings(current.skillsSync),
+        ...patch,
+      });
+      const now = new Date();
+      const [updated] = await db
+        .update(instanceSettings)
+        .set({ skillsSync: { ...next }, updatedAt: now })
+        .where(eq(instanceSettings.id, current.id))
+        .returning();
+      return toInstanceSettings(updated ?? current);
+    },
+
+    getWorkingHours: async (): Promise<WorkingHoursType> => {
+      const row = await getOrCreateRow();
+      return normalizeWorkingHoursSettings(row.workingHours);
+    },
+
+    updateWorkingHours: async (patch: PatchWorkingHours): Promise<InstanceSettings> => {
+      const current = await getOrCreateRow();
+      const next = normalizeWorkingHoursSettings({
+        ...normalizeWorkingHoursSettings(current.workingHours),
+        ...patch,
+      });
+      const now = new Date();
+      const [updated] = await db
+        .update(instanceSettings)
+        .set({ workingHours: { ...next }, updatedAt: now })
         .where(eq(instanceSettings.id, current.id))
         .returning();
       return toInstanceSettings(updated ?? current);
