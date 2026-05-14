@@ -318,5 +318,23 @@ export function companySkillRoutes(db: Db) {
     res.json(result);
   });
 
+  router.get("/companies/:companyId/hidden-sources", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    res.json([]);
+  });
+
+  router.delete("/companies/:companyId/skills/delete-by-source", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    res.json({ deleted: 0 });
+  });
+
+  router.get("/companies/:companyId/team-skills", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    res.json([]);
+  });
+
   return router;
 }

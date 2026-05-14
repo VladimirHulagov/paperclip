@@ -122,6 +122,7 @@ type ParsedSkillImportSource = {
 type SkillSourceMeta = {
   skillKey?: string;
   sourceKind?: string;
+  sourceLabel?: string;
   hostname?: string;
   owner?: string;
   repo?: string;
@@ -133,6 +134,7 @@ type SkillSourceMeta = {
   workspaceId?: string;
   workspaceName?: string;
   workspaceCwd?: string;
+  authorAgentName?: string;
 };
 
 export type LocalSkillInventoryMode = "full" | "project_root";
@@ -1497,6 +1499,38 @@ function deriveSkillSourceInfo(skill: SkillSourceInfoTarget): {
           || skill.sourceLocator
         : skill.sourceLocator,
       sourceBadge: "local",
+      sourcePath: null,
+    };
+  }
+
+  if (metadata.sourceKind === "hermes_bundled") {
+    const sourceLabel = asString(metadata.sourceLabel) ?? "Hermes Agent";
+    return {
+      editable: false,
+      editableReason: "Hermes-bundled skills are read-only.",
+      sourceLabel,
+      sourceBadge: "catalog",
+      sourcePath: null,
+    };
+  }
+
+  if (metadata.sourceKind === "agent_created") {
+    const agentName = asString(metadata.authorAgentName) ?? "Agent";
+    return {
+      editable: false,
+      editableReason: "Agent-created skills are read-only.",
+      sourceLabel: `Agent: ${agentName}`,
+      sourceBadge: "agent_created",
+      sourcePath: null,
+    };
+  }
+
+  if (metadata.sourceKind === "git_sync") {
+    return {
+      editable: false,
+      editableReason: "Git-synced skills are read-only.",
+      sourceLabel: skill.sourceLocator ?? "Git repository",
+      sourceBadge: "github",
       sourcePath: null,
     };
   }
