@@ -2,10 +2,13 @@
 
 -- Budget metric toggle
 ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "budget_metric" text DEFAULT 'billed_cents' NOT NULL;
+--> statement-breakpoint
 ALTER TABLE "budget_policies" ADD COLUMN IF NOT EXISTS "anchor_ts" timestamp with time zone;
+--> statement-breakpoint
 
 -- Messaging settings
 ALTER TABLE "instance_settings" ADD COLUMN IF NOT EXISTS "messaging" jsonb DEFAULT '{}'::jsonb NOT NULL;
+--> statement-breakpoint
 
 -- Roles system
 CREATE TABLE IF NOT EXISTS "role_sources" (
@@ -17,7 +20,9 @@ CREATE TABLE IF NOT EXISTS "role_sources" (
   "created_at" timestamp with time zone NOT NULL DEFAULT now(),
   "updated_at" timestamp with time zone NOT NULL DEFAULT now()
 );
+--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "role_sources_company_url_idx" ON "role_sources" USING btree ("company_id","url");
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS "company_roles" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -36,23 +41,33 @@ CREATE TABLE IF NOT EXISTS "company_roles" (
   "created_at" timestamp with time zone NOT NULL DEFAULT now(),
   "updated_at" timestamp with time zone NOT NULL DEFAULT now()
 );
+--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "company_roles_company_key_idx" ON "company_roles" USING btree ("company_id","key");
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "company_roles_company_name_idx" ON "company_roles" USING btree ("company_id","name");
+--> statement-breakpoint
 
 -- Issue checklist
 ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "checklist" jsonb;
+--> statement-breakpoint
 
 -- Hidden sources for skills
 ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "hidden_sources" jsonb DEFAULT '[]';
+--> statement-breakpoint
 
 -- Skills sync
 ALTER TABLE "instance_settings" ADD COLUMN IF NOT EXISTS "skills_sync" jsonb NOT NULL DEFAULT '{}';
+--> statement-breakpoint
 
 -- Working hours
 ALTER TABLE "instance_settings" ADD COLUMN IF NOT EXISTS "working_hours" jsonb NOT NULL DEFAULT '{}';
+--> statement-breakpoint
 
 -- Hidden skills/roles
-ALTER TABLE IF NOT EXISTS "company_skills" ADD COLUMN IF NOT EXISTS "hidden" boolean NOT NULL DEFAULT false;
-ALTER TABLE IF NOT EXISTS "company_roles" ADD COLUMN IF NOT EXISTS "hidden" boolean NOT NULL DEFAULT false;
+ALTER TABLE "company_skills" ADD COLUMN IF NOT EXISTS "hidden" boolean NOT NULL DEFAULT false;
+--> statement-breakpoint
+ALTER TABLE "company_roles" ADD COLUMN IF NOT EXISTS "hidden" boolean NOT NULL DEFAULT false;
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_company_skills_company_hidden" ON "company_skills"("company_id", "hidden");
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_company_roles_company_hidden" ON "company_roles"("company_id", "hidden");
