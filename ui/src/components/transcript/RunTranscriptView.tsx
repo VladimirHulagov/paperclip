@@ -28,6 +28,7 @@ interface RunTranscriptViewProps {
   limit?: number;
   streaming?: boolean;
   collapseStdout?: boolean;
+  hiddenTypes?: Set<string>;
   emptyMessage?: string;
   className?: string;
   thinkingClassName?: string;
@@ -1470,6 +1471,7 @@ export function RunTranscriptView({
   limit,
   streaming = false,
   collapseStdout = false,
+  hiddenTypes = new Set(),
   emptyMessage = "No transcript yet.",
   className,
   thinkingClassName,
@@ -1478,7 +1480,16 @@ export function RunTranscriptView({
     () => (mode === "raw" ? [] : normalizeTranscript(entries, streaming)),
     [entries, mode, streaming],
   );
-  const visibleBlocks = limit ? blocks.slice(-limit) : blocks;
+  const filteredBlocks = useMemo(() => {
+    if (hiddenTypes.size === 0) return blocks;
+    return blocks.filter((block) => {
+      if (hiddenTypes.has("assistant") && block.type === "message" && block.role === "assistant") return false;
+      if (hiddenTypes.has("thinking") && block.type === "thinking") return false;
+      if (hiddenTypes.has("system_group") && block.type === "system_group") return false;
+      return true;
+    });
+  }, [blocks, hiddenTypes]);
+  const visibleBlocks = limit ? filteredBlocks.slice(-limit) : filteredBlocks;
   const visibleEntries = limit ? entries.slice(-limit) : entries;
 
   if (entries.length === 0) {

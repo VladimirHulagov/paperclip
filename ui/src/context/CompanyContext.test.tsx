@@ -44,6 +44,7 @@ function makeCompany(id: string): Company {
     feedbackDataSharingConsentAt: null,
     feedbackDataSharingConsentByUserId: null,
     feedbackDataSharingTermsVersion: null,
+    budgetMetric: "billed_cents",
     brandColor: null,
     logoAssetId: null,
     logoUrl: null,

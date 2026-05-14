@@ -32,11 +32,11 @@ export const companiesApi = {
         | "description"
         | "status"
         | "budgetMonthlyCents"
-        | "attachmentMaxBytes"
         | "requireBoardApprovalForNewAgents"
         | "feedbackDataSharingEnabled"
         | "brandColor"
         | "logoAssetId"
+        | "budgetMetric"
       >
     >,
   ) => api.patch<Company>(`/companies/${companyId}`, data),

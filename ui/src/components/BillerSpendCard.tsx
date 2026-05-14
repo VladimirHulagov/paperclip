@@ -10,6 +10,7 @@ interface BillerSpendCardProps {
   budgetMonthlyCents: number;
   totalCompanySpendCents: number;
   providerRows: CostByProviderModel[];
+  isTokens?: boolean;
 }
 
 export function BillerSpendCard({
@@ -18,6 +19,7 @@ export function BillerSpendCard({
   budgetMonthlyCents,
   totalCompanySpendCents,
   providerRows,
+  isTokens = false,
 }: BillerSpendCardProps) {
   const providerBreakdown = useMemo(() => {
     const map = new Map<string, { provider: string; costCents: number; inputTokens: number; outputTokens: number }>();

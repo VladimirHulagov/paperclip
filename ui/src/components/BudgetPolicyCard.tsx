@@ -30,12 +30,14 @@ function statusTone(status: BudgetPolicySummary["status"]) {
 
 export function BudgetPolicyCard({
   summary,
+  metric,
   onSave,
   isSaving,
   compact = false,
   variant = "card",
 }: {
   summary: BudgetPolicySummary;
+  metric?: "billed_cents" | "total_tokens";
   onSave?: (amountCents: number) => void;
   isSaving?: boolean;
   compact?: boolean;
@@ -196,7 +198,14 @@ export function BudgetPolicyCard({
             <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
               {summary.scopeType}
             </div>
-            <CardTitle className="mt-1 text-base">{summary.scopeName}</CardTitle>
+            <CardTitle className="mt-1 text-base">
+              {summary.scopeName}
+              {metric && (
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  {metric === "total_tokens" ? "tokens" : "cents"}
+                </span>
+              )}
+            </CardTitle>
             <CardDescription className="mt-1">{windowLabel(summary.windowKind)}</CardDescription>
           </div>
           <div className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.18em]", statusTone(summary.status))}>

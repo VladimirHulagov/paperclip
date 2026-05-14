@@ -236,6 +236,7 @@ export type {
   RoleSourceCreateRequest,
   RoleSourceType,
 } from "./role.js";
+export type { TeamSkill, TeamSkillDetail } from "./team-skill.js";
 export type {
   IssueTreeControlPreview,
   IssueTreeHold,

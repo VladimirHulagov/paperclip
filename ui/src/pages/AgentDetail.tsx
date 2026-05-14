@@ -632,7 +632,7 @@ export function AgentDetail() {
     tab?: string;
     runId?: string;
   }>();
-  const { companies, selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { companies, selectedCompanyId, selectedCompany, setSelectedCompanyId } = useCompany();
   const { closePanel } = usePanel();
   const { openNewIssue } = useDialogActions();
   const { setBreadcrumbs } = useBreadcrumbs();
@@ -706,36 +706,37 @@ export function AgentDetail() {
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   const reportsToAgent = (allAgents ?? []).find((a) => a.id === agent?.reportsTo);
   const directReports = (allAgents ?? []).filter((a) => a.reportsTo === agent?.id && a.status !== "terminated");
-  const agentBudgetSummary = useMemo(() => {
-    const matched = budgetOverview?.policies.find(
-      (policy) => policy.scopeType === "agent" && policy.scopeId === (agent?.id ?? routeAgentRef),
-    );
-    if (matched) return matched;
-    const budgetMonthlyCents = agent?.budgetMonthlyCents ?? 0;
-    const spentMonthlyCents = agent?.spentMonthlyCents ?? 0;
-    return {
-      policyId: "",
-      companyId: resolvedCompanyId ?? "",
-      scopeType: "agent",
-      scopeId: agent?.id ?? routeAgentRef,
-      scopeName: agent?.name ?? "Agent",
-      metric: "billed_cents",
-      windowKind: "calendar_month_utc",
-      amount: budgetMonthlyCents,
-      observedAmount: spentMonthlyCents,
-      remainingAmount: Math.max(0, budgetMonthlyCents - spentMonthlyCents),
-      utilizationPercent:
-        budgetMonthlyCents > 0 ? Number(((spentMonthlyCents / budgetMonthlyCents) * 100).toFixed(2)) : 0,
-      warnPercent: 80,
-      hardStopEnabled: true,
-      notifyEnabled: true,
-      isActive: budgetMonthlyCents > 0,
-      status: budgetMonthlyCents > 0 && spentMonthlyCents >= budgetMonthlyCents ? "hard_stop" : "ok",
-      paused: agent?.status === "paused",
-      pauseReason: agent?.pauseReason ?? null,
-      windowStart: new Date(),
-      windowEnd: new Date(),
-    } satisfies BudgetPolicySummary;
+  const agentBudgetSummaries = useMemo(() => {
+    const agentId = agent?.id ?? routeAgentRef;
+    const ALL_METRICS: ("billed_cents" | "total_tokens")[] = ["billed_cents", "total_tokens"];
+    return ALL_METRICS.map((metric) => {
+      const matched = budgetOverview?.policies.find(
+        (policy) => policy.scopeType === "agent" && policy.scopeId === agentId && policy.metric === metric,
+      );
+      if (matched) return matched;
+      return {
+        policyId: "",
+        companyId: resolvedCompanyId ?? "",
+        scopeType: "agent",
+        scopeId: agentId,
+        scopeName: agent?.name ?? "Agent",
+        metric,
+        windowKind: "calendar_month_utc",
+        amount: 0,
+        observedAmount: 0,
+        remainingAmount: 0,
+        utilizationPercent: 0,
+        warnPercent: 80,
+        hardStopEnabled: true,
+        notifyEnabled: true,
+        isActive: false,
+        status: "ok" as const,
+        paused: agent?.status === "paused",
+        pauseReason: agent?.pauseReason ?? null,
+        windowStart: new Date(),
+        windowEnd: new Date(),
+      } satisfies BudgetPolicySummary;
+    });
   }, [agent, budgetOverview?.policies, resolvedCompanyId, routeAgentRef]);
   const mobileLiveRun = useMemo(
     () => (heartbeats ?? []).find((r) => r.status === "running" || r.status === "queued") ?? null,
@@ -806,12 +807,13 @@ export function AgentDetail() {
   });
 
   const budgetMutation = useMutation({
-    mutationFn: (amount: number) =>
+    mutationFn: ({ amount, metric }: { amount: number; metric: "billed_cents" | "total_tokens" }) =>
       budgetsApi.upsertPolicy(resolvedCompanyId!, {
         scopeType: "agent",
         scopeId: agent?.id ?? routeAgentRef,
         amount,
         windowKind: "calendar_month_utc",
+        metric,
       }),
     onSuccess: () => {
       if (!resolvedCompanyId) return;
@@ -1153,13 +1155,17 @@ export function AgentDetail() {
       )}
 
       {activeView === "budget" && resolvedCompanyId ? (
-        <div className="max-w-3xl">
-          <BudgetPolicyCard
-            summary={agentBudgetSummary}
-            isSaving={budgetMutation.isPending}
-            onSave={(amount) => budgetMutation.mutate(amount)}
-            variant="plain"
-          />
+        <div className="max-w-3xl space-y-4">
+          {agentBudgetSummaries.map((summary) => (
+            <BudgetPolicyCard
+              key={summary.metric}
+              summary={summary}
+              metric={summary.metric}
+              isSaving={budgetMutation.isPending}
+              onSave={(amount) => budgetMutation.mutate({ amount, metric: summary.metric })}
+              variant="plain"
+            />
+          ))}
         </div>
       ) : null}
     </div>
@@ -1673,6 +1679,35 @@ function ConfigurationTab({
               disabled={updatePermissions.isPending || taskAssignLocked}
             />
           </div>
+          {agent.adapterType === "hermes_local" && (
+            <div className="flex items-center justify-between gap-4 text-sm">
+              <div className="space-y-1">
+                <div>Docker access</div>
+                <p className="text-xs text-muted-foreground">
+                  Allow this agent to manage Docker containers (restart, logs, stop, start).
+                </p>
+              </div>
+              <ToggleSwitch
+                checked={
+                  (
+                    (agent.adapterConfig as Record<string, unknown>)?.docker as Record<string, unknown>
+                  )?.enabled === true
+                }
+                onCheckedChange={() => {
+                  const currentDocker = (
+                    (agent.adapterConfig as Record<string, unknown>)?.docker as Record<string, unknown>
+                  ) ?? {};
+                  updateAgent.mutate({
+                    adapterConfig: {
+                      ...agent.adapterConfig,
+                      docker: { enabled: !(currentDocker.enabled === true) },
+                    },
+                  });
+                }}
+                disabled={updateAgent.isPending}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -3495,6 +3530,7 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
   const [isFollowing, setIsFollowing] = useState(false);
   const [isStreamingConnected, setIsStreamingConnected] = useState(false);
   const [transcriptMode, setTranscriptMode] = useState<TranscriptMode>("nice");
+  const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set());
   const logEndRef = useRef<HTMLDivElement>(null);
   const pendingLogLineRef = useRef("");
   const scrollContainerRef = useRef<ScrollContainer | null>(null);
@@ -3913,11 +3949,44 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
         <RunInvocationCard payload={adapterInvokePayload} censorUsernameInLogs={censorUsernameInLogs} />
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-medium text-muted-foreground">
           Transcript ({transcript.length})
         </span>
         <div className="flex items-center gap-2">
+          {transcriptMode === "nice" && (
+            <div className="inline-flex rounded-lg border border-border/70 bg-background/70 p-0.5">
+              {([
+                { key: "assistant", label: "ASSISTANT" },
+                { key: "thinking", label: "THINKING" },
+                { key: "system_group", label: "SYSTEM" },
+              ] as const).map((toggle) => {
+                const active = !hiddenTypes.has(toggle.key);
+                return (
+                  <button
+                    key={toggle.key}
+                    type="button"
+                    className={cn(
+                      "rounded-md px-2 py-1 text-[10px] font-semibold tracking-[0.12em] transition-colors",
+                      active
+                        ? "bg-accent text-foreground shadow-sm"
+                        : "text-muted-foreground/50 hover:text-muted-foreground",
+                    )}
+                    onClick={() => {
+                      setHiddenTypes((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(toggle.key)) next.delete(toggle.key);
+                        else next.add(toggle.key);
+                        return next;
+                      });
+                    }}
+                  >
+                    {toggle.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="inline-flex rounded-lg border border-border/70 bg-background/70 p-0.5">
             {(["nice", "raw"] as const).map((mode) => (
               <button
@@ -3966,6 +4035,7 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
           entries={transcript}
           mode={transcriptMode}
           streaming={isLive}
+          hiddenTypes={hiddenTypes}
           emptyMessage={run.logRef ? "Waiting for transcript..." : "No persisted transcript for this run."}
         />
         {hasMoreLog && (

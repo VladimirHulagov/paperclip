@@ -8,12 +8,16 @@ import type {
   CompanySkillProjectScanRequest,
   CompanySkillProjectScanResult,
   CompanySkillUpdateStatus,
+  TeamSkill,
+  TeamSkillDetail,
 } from "@paperclipai/shared";
 import { api } from "./client";
 
 export const companySkillsApi = {
   list: (companyId: string) =>
     api.get<CompanySkillListItem[]>(`/companies/${encodeURIComponent(companyId)}/skills`),
+  listIncludingHidden: (companyId: string) =>
+    api.get<CompanySkillListItem[]>(`/companies/${encodeURIComponent(companyId)}/skills?includeHidden=true`),
   detail: (companyId: string, skillId: string) =>
     api.get<CompanySkillDetail>(
       `/companies/${encodeURIComponent(companyId)}/skills/${encodeURIComponent(skillId)}`,
@@ -51,8 +55,43 @@ export const companySkillsApi = {
       `/companies/${encodeURIComponent(companyId)}/skills/${encodeURIComponent(skillId)}/install-update`,
       {},
     ),
+  setVisibility: (companyId: string, skillId: string, hidden: boolean, force?: boolean) =>
+    api.patch<{ hidden: boolean } | { error: string; attachedAgentCount: number }>(
+      `/companies/${encodeURIComponent(companyId)}/skills/${encodeURIComponent(skillId)}`,
+      { hidden, force },
+    ),
+  hiddenSources: (companyId: string) =>
+    api.get<{ source_type: string; source_locator: string }[]>(
+      `/companies/${encodeURIComponent(companyId)}/hidden-sources`,
+    ),
+  setHiddenSources: (companyId: string, sources: { source_type: string; source_locator: string }[]) =>
+    api.put<{ source_type: string; source_locator: string }[]>(
+      `/companies/${encodeURIComponent(companyId)}/hidden-sources`,
+      sources,
+    ),
+  deleteBySource: (companyId: string, sourceType: string, sourceLocator: string) =>
+    api.delete<{ deletedCount: number }>(
+      `/companies/${encodeURIComponent(companyId)}/skills-by-source?sourceType=${encodeURIComponent(sourceType)}&sourceLocator=${encodeURIComponent(sourceLocator)}`,
+    ),
   delete: (companyId: string, skillId: string) =>
     api.delete<CompanySkill>(
       `/companies/${encodeURIComponent(companyId)}/skills/${encodeURIComponent(skillId)}`,
+    ),
+  listTeamSkills: (companyId: string) =>
+    api.get<TeamSkill[]>(
+      `/companies/${encodeURIComponent(companyId)}/team-skills`,
+    ),
+  getTeamSkill: (companyId: string, agentId: string, category: string, skillName: string) =>
+    api.get<TeamSkillDetail>(
+      `/companies/${encodeURIComponent(companyId)}/team-skills/${agentId}/${category}/${skillName}`,
+    ),
+  updateTeamSkill: (companyId: string, agentId: string, category: string, skillName: string, markdown: string) =>
+    api.put<{ ok: boolean }>(
+      `/companies/${encodeURIComponent(companyId)}/team-skills/${agentId}/${category}/${skillName}`,
+      { markdown },
+    ),
+  deleteTeamSkill: (companyId: string, agentId: string, category: string, skillName: string) =>
+    api.delete<{ ok: boolean }>(
+      `/companies/${encodeURIComponent(companyId)}/team-skills/${agentId}/${category}/${skillName}`,
     ),
 };
