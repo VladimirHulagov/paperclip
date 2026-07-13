@@ -48,6 +48,7 @@ export const companySkillSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  hidden: z.boolean(),
 });
 
 export const companySkillListItemSchema = companySkillSchema.extend({
@@ -66,6 +67,7 @@ export const companySkillListItemSchema = companySkillSchema.extend({
     name: z.string().nullable(),
     imageUrl: z.string().nullable(),
   }).nullable().optional(),
+  hidden: z.boolean(),
 });
 
 export const companySkillUsageAgentSchema = z.object({
@@ -106,6 +108,7 @@ export const companySkillListQuerySchema = z.object({
   categories: z.array(z.string().min(1)).optional(),
   scope: companySkillSharingScopeSchema.optional(),
   include: z.array(companySkillListIncludeSchema).optional(),
+  includeHidden: z.boolean().optional(),
 });
 
 export const companySkillCategoryCountSchema = z.object({
@@ -547,3 +550,10 @@ export type CatalogSkillListQuery = z.infer<typeof catalogSkillListQuerySchema>;
 export type CompanySkillInstallCatalog = z.infer<typeof companySkillInstallCatalogSchema>;
 export type CompanySkillInstallUpdate = z.infer<typeof companySkillInstallUpdateSchema>;
 export type CompanySkillReset = z.infer<typeof companySkillResetSchema>;
+
+export const companySkillVisibilitySchema = z.object({
+  hidden: z.boolean(),
+  force: z.boolean().optional(),
+});
+
+export type CompanySkillVisibility = z.infer<typeof companySkillVisibilitySchema>;

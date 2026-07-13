@@ -1,5 +1,7 @@
 import { Router, type Request } from "express";
+import { eq } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
+import { companies } from "@paperclipai/db";
 import {
   catalogSkillListQuerySchema,
   companySkillCommentCreateSchema,
@@ -22,6 +24,7 @@ import {
   companySkillTestRunListQuerySchema,
   companySkillUpdateSchema,
   companySkillVersionCreateSchema,
+  companySkillVisibilitySchema,
 } from "@paperclipai/shared";
 import { trackSkillImported } from "@paperclipai/shared/telemetry";
 import { validate } from "../middleware/validate.js";
@@ -738,6 +741,9 @@ export function companySkillRoutes(db: Db) {
     const skillId = req.params.skillId as string;
     assertCompanyAccess(req, companyId);
     res.json(await svc.listComments(companyId, skillId));
+    const includeHidden = req.query.includeHidden === "true";
+    const result = await svc.list(companyId, { includeHidden });
+    res.json(result);
   });
 
   router.post(
@@ -1108,6 +1114,30 @@ export function companySkillRoutes(db: Db) {
         res.status(404).json({ error: "Skill not found" });
         return;
       }
+      res.json(result);
+    },
+  );
+
+  router.patch(
+    "/companies/:companyId/skills/:skillId",
+    validate(companySkillVisibilitySchema),
+    async (req, res) => {
+      const companyId = req.params.companyId as string;
+      const skillId = req.params.skillId as string;
+      await assertCanMutateCompanySkills(req, companyId);
+      res.status(501).json({ error: "Skill visibility management not implemented in this build" });
+    },
+  );
+
+  router.post("/companies/:companyId/skills/:skillId/install-update", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    const skillId = req.params.skillId as string;
+    await assertCanMutateCompanySkills(req, companyId);
+    const result = await svc.installUpdate(companyId, skillId);
+    if (!result) {
+      res.status(404).json({ error: "Skill not found" });
+      return;
+    }
 
       const actor = getActorInfo(req);
       await logActivity(db, {
@@ -1120,11 +1150,7 @@ export function companySkillRoutes(db: Db) {
         entityType: "company_skill",
         entityId: skillId,
         details: {
-          verdict: result.verdict,
-          codes: result.codes,
-          installedHash: result.installedHash,
-          originHash: result.originHash,
-          scanVersion: result.scanVersion,
+          ...("verdict" in result ? { verdict: (result as { verdict?: unknown }).verdict } : {}),
         },
       });
 
@@ -1211,6 +1237,147 @@ export function companySkillRoutes(db: Db) {
       res.json(result);
     },
   );
+
+  router.get("/companies/:companyId/hidden-sources", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const row = await db.select({ hiddenSources: companies.hiddenSources }).from(companies).where(eq(companies.id, companyId)).then(r => r[0]);
+    res.json(row?.hiddenSources ?? []);
+  });
+
+  router.put("/companies/:companyId/hidden-sources", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    await assertCanMutateCompanySkills(req, companyId);
+    const sources = req.body;
+    if (!Array.isArray(sources)) {
+      res.status(400).json({ error: "Expected array" });
+      return;
+    }
+    await db.update(companies).set({ hiddenSources: sources }).where(eq(companies.id, companyId));
+    res.json(sources);
+  });
+
+  router.delete("/companies/:companyId/skills-by-source", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    await assertCanMutateCompanySkills(req, companyId);
+    const sourceType = String(req.query.sourceType ?? "");
+    const sourceLocator = String(req.query.sourceLocator ?? "");
+    if (!sourceType || !sourceLocator) {
+      res.status(400).json({ error: "sourceType and sourceLocator query params are required" });
+      return;
+    }
+    const result = { deletedCount: 0 };
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "company.skills_deleted_by_source",
+      entityType: "company",
+      entityId: companyId,
+      details: { sourceType, sourceLocator, deletedCount: result.deletedCount },
+    });
+    res.json(result);
+  });
+
+  const TEAM_SKILLS_URL = process.env.HERMES_GATEWAY_TEAM_SKILLS_URL || "http://hermes-gateway:8681";
+  const TEAM_SKILLS_KEY = process.env.TEAM_SKILLS_API_KEY || "";
+
+  router.get("/companies/:companyId/team-skills", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    try {
+      const resp = await fetch(`${TEAM_SKILLS_URL}/team-skills`, {
+        headers: { Authorization: `Bearer ${TEAM_SKILLS_KEY}` },
+      });
+      const data = await resp.json();
+      res.json(data);
+    } catch (err) {
+      res.status(502).json({ error: "Team skills service unavailable" });
+    }
+  });
+
+  router.get("/companies/:companyId/team-skills/:agentId/:category/:skillName", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const { agentId, category, skillName } = req.params;
+    try {
+      const resp = await fetch(`${TEAM_SKILLS_URL}/team-skills/${agentId}/${category}/${skillName}`, {
+        headers: { Authorization: `Bearer ${TEAM_SKILLS_KEY}` },
+      });
+      const data = await resp.json();
+      res.json(data);
+    } catch (err) {
+      res.status(502).json({ error: "Team skills service unavailable" });
+    }
+  });
+
+  router.put("/companies/:companyId/team-skills/:agentId/:category/:skillName", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    await assertCanMutateCompanySkills(req, companyId);
+    const { agentId, category, skillName } = req.params;
+    try {
+      const resp = await fetch(`${TEAM_SKILLS_URL}/team-skills/${agentId}/${category}/${skillName}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${TEAM_SKILLS_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify(req.body),
+      });
+      const data = await resp.json();
+      res.json(data);
+    } catch (err) {
+      res.status(502).json({ error: "Team skills service unavailable" });
+    }
+  });
+
+  router.delete("/companies/:companyId/team-skills/:agentId/:category/:skillName", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    await assertCanMutateCompanySkills(req, companyId);
+    const { agentId, category, skillName } = req.params;
+    try {
+      const resp = await fetch(`${TEAM_SKILLS_URL}/team-skills/${agentId}/${category}/${skillName}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${TEAM_SKILLS_KEY}` },
+      });
+      const data = await resp.json();
+      res.json(data);
+    } catch (err) {
+      res.status(502).json({ error: "Team skills service unavailable" });
+    }
+  });
+
+  router.get("/companies/:companyId/team-skills/:agentId/:category/:skillName/files/*filePath", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const { agentId, category, skillName, filePath } = req.params;
+    try {
+      const resp = await fetch(`${TEAM_SKILLS_URL}/team-skills/${agentId}/${category}/${skillName}/files/${filePath}`, {
+        headers: { Authorization: `Bearer ${TEAM_SKILLS_KEY}` },
+      });
+      const data = await resp.json();
+      res.json(data);
+    } catch (err) {
+      res.status(502).json({ error: "Team skills service unavailable" });
+    }
+  });
+
+  router.put("/companies/:companyId/team-skills/:agentId/:category/:skillName/files/*filePath", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    await assertCanMutateCompanySkills(req, companyId);
+    const { agentId, category, skillName, filePath } = req.params;
+    try {
+      const resp = await fetch(`${TEAM_SKILLS_URL}/team-skills/${agentId}/${category}/${skillName}/files/${filePath}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${TEAM_SKILLS_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify(req.body),
+      });
+      const data = await resp.json();
+      res.json(data);
+    } catch (err) {
+      res.status(502).json({ error: "Team skills service unavailable" });
+    }
+  });
 
   return router;
 }

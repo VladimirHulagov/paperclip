@@ -96,6 +96,13 @@ export const issueBlockedInboxAttentionSchema = z.object({
   }).strict(),
 }).strict();
 
+export const issueChecklistItemSchema = z.object({
+  text: z.string().max(200),
+  done: z.boolean(),
+});
+
+export const issueChecklistSchema = z.array(issueChecklistItemSchema).max(20).nullable();
+
 export const ISSUE_EXECUTION_WORKSPACE_PREFERENCES = [
   "inherit",
   "shared_workspace",
@@ -465,6 +472,7 @@ export const updateIssueSchema = createIssueBaseSchema.omit({
   resume: z.boolean().optional(),
   interrupt: z.boolean().optional(),
   hiddenAt: z.string().datetime().nullable().optional(),
+  checklist: issueChecklistSchema.optional(),
 });
 
 export type UpdateIssue = z.infer<typeof updateIssueSchema>;

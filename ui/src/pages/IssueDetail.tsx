@@ -5009,7 +5009,7 @@ export function IssueDetail() {
       <Sheet open={mobilePropsOpen} onOpenChange={setMobilePropsOpen}>
         <SheetContent side="bottom" className="max-h-(--sz-85dvh) pb-(--sz-safe-bottom)">
           <SheetHeader>
-            <SheetTitle className="text-sm">Properties</SheetTitle>
+            <SheetTitle className="text-sm">Details</SheetTitle>
           </SheetHeader>
           <ScrollArea className="flex-1 overflow-y-auto">
             <div className="px-4 pb-4">

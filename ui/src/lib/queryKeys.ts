@@ -38,6 +38,10 @@ export const queryKeys = {
     catalogFile: (catalogRef: string, relativePath: string) =>
       ["team-catalog", "catalog", "file", catalogRef, relativePath] as const,
     installed: (companyId: string) => ["team-catalog", "installed", companyId] as const,
+    hiddenSources: (companyId: string) => ["company-skills", companyId, "hidden-sources"] as const,
+    teamSkills: (companyId: string) => ["company-skills", companyId, "team-skills"] as const,
+    teamSkillDetail: (companyId: string, agentId: string, category: string, skillName: string) =>
+      ["company-skills", companyId, "team-skills", agentId, category, skillName] as const,
   },
   agents: {
     list: (companyId: string) => ["agents", companyId] as const,
@@ -262,6 +266,7 @@ export const queryKeys = {
     generalSettings: ["instance", "general-settings"] as const,
     schedulerHeartbeats: ["instance", "scheduler-heartbeats"] as const,
     experimentalSettings: ["instance", "experimental-settings"] as const,
+    messagingSettings: ["instance", "messaging-settings"] as const,
   },
   cloudUpstreams: (companyId: string) => ["cloud-upstreams", companyId] as const,
   health: ["health"] as const,
@@ -330,5 +335,15 @@ export const queryKeys = {
   },
   adapters: {
     all: ["adapters"] as const,
+  },
+  roleSources: {
+    list: (companyId: string) => ["role-sources", companyId] as const,
+    browse: (companyId: string, sourceId: string) =>
+      ["role-sources", companyId, sourceId, "browse"] as const,
+  },
+  companyRoles: {
+    list: (companyId: string) => ["company-roles", companyId] as const,
+    detail: (companyId: string, roleId: string) =>
+      ["company-roles", companyId, roleId] as const,
   },
 };

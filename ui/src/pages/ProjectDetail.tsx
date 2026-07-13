@@ -368,7 +368,7 @@ export function ProjectDetail() {
     projectId: string;
     filter?: string;
   }>();
-  const { companies, selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { companies, selectedCompanyId, selectedCompany, setSelectedCompanyId } = useCompany();
   const { closePanel } = usePanel();
   const { setBreadcrumbs } = useBreadcrumbs();
   const { pushToast } = useToastActions();
@@ -636,7 +636,7 @@ export function ProjectDetail() {
       scopeType: "project",
       scopeId: project?.id ?? routeProjectRef,
       scopeName: project?.name ?? "Project",
-      metric: "billed_cents",
+      metric: selectedCompany?.budgetMetric ?? "billed_cents",
       windowKind: "lifetime",
       amount: 0,
       observedAmount: 0,
@@ -936,6 +936,7 @@ export function ProjectDetail() {
         <div className="max-w-3xl">
           <BudgetPolicyCard
             summary={projectBudgetSummary}
+            metric={projectBudgetSummary?.metric}
             variant="plain"
             isSaving={budgetMutation.isPending}
             onSave={(amount) => budgetMutation.mutate(amount)}

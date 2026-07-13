@@ -2472,6 +2472,7 @@ const issueListSelect = {
   hiddenAt: issues.hiddenAt,
   createdAt: issues.createdAt,
   updatedAt: issues.updatedAt,
+  checklist: issues.checklist,
 };
 
 function withActiveRuns(

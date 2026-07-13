@@ -404,6 +404,7 @@ export function companyRoutes(db: Db, storage?: StorageService) {
           scopeId: company.id,
           amount: company.budgetMonthlyCents,
           windowKind: "calendar_month_utc",
+          metric: (company as any).budgetMetric ?? "billed_cents",
         },
         req.actor.userId ?? "board",
       );
@@ -471,6 +472,13 @@ export function companyRoutes(db: Db, storage?: StorageService) {
       res.status(404).json({ error: "Company not found" });
       return;
     }
+    if (
+      body.budgetMetric
+      && body.budgetMetric !== (existingCompany as any).budgetMetric
+    ) {
+      await budgets.migratePoliciesMetric(companyId, body.budgetMetric as "billed_cents" | "total_tokens");
+    }
+
     if (!lifecycleEventEmittedByService) {
       await logActivity(db, {
         companyId,

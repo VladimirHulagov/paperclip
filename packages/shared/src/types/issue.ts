@@ -700,6 +700,11 @@ export interface IssueWatchdog extends IssueWatchdogSummary {
   updatedByRunId: string | null;
 }
 
+export interface IssueChecklistItem {
+  text: string;
+  done: boolean;
+}
+
 export interface Issue {
   id: string;
   companyId: string;
@@ -746,6 +751,7 @@ export interface Issue {
   cancelledAt: Date | null;
   hiddenAt: Date | null;
   sourceTrust?: SourceTrustMetadata | null;
+  checklist?: IssueChecklistItem[] | null;
   labelIds?: string[];
   labels?: IssueLabel[];
   blockedBy?: IssueRelationIssueSummary[];

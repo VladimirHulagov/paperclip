@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  BUDGET_METRICS,
   COMPANY_STATUSES,
   MAX_COMPANY_ATTACHMENT_MAX_BYTES,
 } from "../constants.js";
@@ -36,6 +37,7 @@ export const updateCompanySchema = createCompanySchema
     brandColor: brandColorSchema,
     logoAssetId: logoAssetIdSchema,
     attachmentMaxBytes: attachmentMaxBytesSchema.optional(),
+    budgetMetric: z.enum(BUDGET_METRICS).optional(),
   });
 
 export type UpdateCompany = z.infer<typeof updateCompanySchema>;

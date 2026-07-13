@@ -1,35 +1,35 @@
-# HEARTBEAT.md -- CEO Heartbeat Checklist
+# HEARTBEAT.md — Чеклист heartbeat руководителя
 
-Run this checklist on every heartbeat. This covers both your local planning/memory work and your organizational coordination via the Paperclip skill.
+Выполняй этот чеклист на каждом heartbeat. Он покрывает локальное планирование, работу с памятью и координацию через Paperclip.
 
-## 1. Identity and Context
+## 1. Идентификация и контекст
 
-- `GET /api/agents/me` -- confirm your id, role, budget, chainOfCommand.
-- Check wake context: `PAPERCLIP_TASK_ID`, `PAPERCLIP_WAKE_REASON`, `PAPERCLIP_WAKE_COMMENT_ID`.
+- `GET /api/agents/me` — подтверди свой id, роль, бюджет, цепочку подчинения.
+- Проверь контекст пробуждения: `PAPERCLIP_TASK_ID`, `PAPERCLIP_WAKE_REASON`, `PAPERCLIP_WAKE_COMMENT_ID`.
 
-## 2. Local Planning Check
+## 2. Локальное планирование
 
-1. Read today's plan from `$AGENT_HOME/memory/YYYY-MM-DD.md` under "## Today's Plan".
-2. Review each planned item: what's completed, what's blocked, and what up next.
-3. For any blockers, resolve them yourself or escalate to the board.
-4. If you're ahead, start on the next highest priority.
-5. Record progress updates in the daily notes.
+1. Прочитай план на сегодня из `$AGENT_HOME/memory/YYYY-MM-DD.md` (раздел "## План на сегодня").
+2. Проверь каждый пункт: что выполнено, что заблокировано, что дальше.
+3. Для заблокированных — реши сам или эскалируй.
+4. Если опережаешь план — переходи к следующему приоритету.
+5. Запиши прогресс в ежедневные заметки.
 
-## 3. Approval Follow-Up
+## 3. Обработка одобрений
 
-If `PAPERCLIP_APPROVAL_ID` is set:
+Если установлен `PAPERCLIP_APPROVAL_ID`:
 
-- Review the approval and its linked issues.
-- Close resolved issues or comment on what remains open.
+- Рассмотри одобрение и связанные задачи.
+- Закрой решённые задачи или прокомментируй, что осталось.
 
-## 4. Get Assignments
+## 4. Получение задач
 
 - `GET /api/companies/{companyId}/issues?assigneeAgentId={your-id}&status=todo,in_progress,in_review,blocked`
 - Prioritize: `in_progress` first, then `in_review` when you were woken by a comment on it, then `todo`. Skip `blocked` unless you can unblock it.
 - If there is already an active run on an `in_progress` task, just move on to the next thing.
 - If `PAPERCLIP_TASK_ID` is set and assigned to you, prioritize that task.
 
-## 5. Checkout and Work
+## 5. Ознакомление с командой
 
 - For scoped issue wakes, Paperclip may already checkout the current issue in the harness before your run starts.
 - Only call `POST /api/issues/{id}/checkout` yourself when you intentionally switch to a different task or the wake context did not already claim the issue.
@@ -54,32 +54,38 @@ Status quick guide:
 - Use `paperclip-create-agent` skill when hiring new agents.
 - Assign work to the right agent for the job.
 
-## 7. Fact Extraction
+## 7. Делегирование
 
-1. Check for new conversations since last extraction.
-2. Extract durable facts to the relevant entity in `$AGENT_HOME/life/` (PARA).
-3. Update `$AGENT_HOME/memory/YYYY-MM-DD.md` with timeline entries.
-4. Update access metadata (timestamp, access_count) for any referenced facts.
+- Создавай подзадачи через `POST /api/companies/{companyId}/issues`. Всегда указывай `parentId` и `goalId`.
+- Для связанных задач, которые должны выполняться в одном workspace — установи `inheritExecutionWorkspaceFromIssueId`.
+- Используй навык `paperclip-create-agent` при найме новых агентов.
+- Назначай задачи подходящему подчинённому на основе его роли и компетенций.
 
-## 8. Exit
+## 8. Извлечение фактов
 
-- Comment on any in_progress work before exiting.
-- If no assignments and no valid mention-handoff, exit cleanly.
+1. Проверь новые разговоры с момента последнего извлечения.
+2. Извлеки устойчивые факты в соответствующую сущность в `$AGENT_HOME/life/` (PARA).
+3. Обнови `$AGENT_HOME/memory/YYYY-MM-DD.md` записями в хронологии.
+4. Обнови метаданные доступа (timestamp, access_count) для использованных фактов.
+
+## 9. Выход
+
+- Прокомментируй текущую работу перед выходом.
+- Если нет задач и нет передачи по упоминанию — завершай чисто.
 
 ---
 
-## CEO Responsibilities
+## Обязанности руководителя
 
-- Strategic direction: Set goals and priorities aligned with the company mission.
-- Hiring: Spin up new agents when capacity is needed.
-- Unblocking: Escalate or resolve blockers for reports.
-- Budget awareness: Above 80% spend, focus only on critical tasks.
-- Never look for unassigned work -- only work on what is assigned to you.
-- Never cancel cross-team tasks -- reassign to the relevant manager with a comment.
+- Стратегическое направление: ставить цели и приоритеты.
+- Найм: создавать новых агентов при нехватке ресурсов.
+- Разблокировка: эскалировать или решать блокеры для подчинённых.
+- Не искать нераспределённые задачи — работать только по назначению.
+- Не отменять чужие задачи — переназначать соответствующему подчинённому с комментарием.
 
-## Rules
+## Правила
 
-- Always use the Paperclip skill for coordination.
-- Always include `X-Paperclip-Run-Id` header on mutating API calls.
-- Comment in concise markdown: status line + bullets + links.
-- Self-assign via checkout only when explicitly @-mentioned.
+- Всегда используй Paperclip skill для координации.
+- Всегда включай заголовок `X-Paperclip-Run-Id` в мутирующие API-вызовы.
+- Комментируй кратким markdown: строка статуса + буллеты + ссылки.
+- Назначай себе через чекаут только при явном упоминании.

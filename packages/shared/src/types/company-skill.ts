@@ -1,7 +1,7 @@
 import type { IssueAttachment, IssueDocument } from "./issue.js";
 import type { IssueWorkProduct } from "./work-product.js";
 
-export type CompanySkillSourceType = "local_path" | "github" | "url" | "catalog" | "skills_sh";
+export type CompanySkillSourceType = "local_path" | "github" | "url" | "catalog" | "skills_sh" | "team";
 
 export type CompanySkillTrustLevel = "markdown_only" | "assets" | "scripts_executables";
 
@@ -62,6 +62,7 @@ export interface CompanySkill {
   metadata: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
+  hidden?: boolean;
 }
 
 export interface CompanySkillListItem {
@@ -104,6 +105,7 @@ export interface CompanySkillListItem {
   packageName: string | null;
   packageVersion: string | null;
   lastEditor?: CompanySkillLastEditor | null;
+  hidden?: boolean;
 }
 
 export interface CompanySkillUsageAgent {
@@ -140,6 +142,7 @@ export interface CompanySkillListQuery {
   categories?: string[];
   scope?: CompanySkillSharingScope;
   include?: CompanySkillListInclude[];
+  includeHidden?: boolean;
 }
 
 export interface CompanySkillCategoryCount {

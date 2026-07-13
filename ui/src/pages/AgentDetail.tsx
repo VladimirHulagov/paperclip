@@ -9,6 +9,7 @@ import {
 } from "../api/agents";
 import { builtInAgentsApi, type BuiltInManagedResourceKind } from "../api/builtInAgents";
 import { companySkillsApi } from "../api/companySkills";
+import { companyRolesApi } from "../api/roles";
 import { budgetsApi } from "../api/budgets";
 import { heartbeatsApi } from "../api/heartbeats";
 import { instanceSettingsApi } from "../api/instanceSettings";
@@ -26,6 +27,7 @@ import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { AgentSkillsTab } from "./agent-skills/AgentSkillsTab";
 import { AgentConfigForm } from "../components/AgentConfigForm";
+import { AgentMessagingTab } from "../components/AgentMessagingTab";
 import { PageTabBar } from "../components/PageTabBar";
 import { adapterLabels, roleLabels, help } from "../components/agent-config-primitives";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
@@ -81,10 +83,20 @@ import {
   HelpCircle,
   FolderOpen,
   AlertTriangle,
+  Download,
+  Search,
+  Upload,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { AgentIcon, AgentIconPicker } from "../components/AgentIconPicker";
 import { RunTranscriptView, type TranscriptMode } from "../components/transcript/RunTranscriptView";
 import {
@@ -264,12 +276,13 @@ function scrollToContainerBottom(container: ScrollContainer, behavior: ScrollBeh
   container.scrollTo({ top: container.scrollHeight, behavior });
 }
 
-type AgentDetailView = "dashboard" | "instructions" | "configuration" | "skills" | "runs" | "budget";
+type AgentDetailView = "dashboard" | "instructions" | "configuration" | "skills" | "messaging" | "runs" | "budget";
 
 function parseAgentDetailView(value: string | null): AgentDetailView {
   if (value === "instructions" || value === "prompts") return "instructions";
   if (value === "configure" || value === "configuration") return "configuration";
   if (value === "skills") return "skills";
+  if (value === "messaging") return "messaging";
   if (value === "budget") return "budget";
   if (value === "runs") return value;
   return "dashboard";
@@ -683,7 +696,7 @@ export function AgentDetail() {
     tab?: string;
     runId?: string;
   }>();
-  const { companies, selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { companies, selectedCompanyId, selectedCompany, setSelectedCompanyId } = useCompany();
   const { closePanel } = usePanel();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
@@ -835,36 +848,37 @@ export function AgentDetail() {
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   const reportsToAgent = (allAgents ?? []).find((a) => a.id === agent?.reportsTo);
   const directReports = (allAgents ?? []).filter((a) => a.reportsTo === agent?.id && a.status !== "terminated");
-  const agentBudgetSummary = useMemo(() => {
-    const matched = budgetOverview?.policies.find(
-      (policy) => policy.scopeType === "agent" && policy.scopeId === (agent?.id ?? routeAgentRef),
-    );
-    if (matched) return matched;
-    const budgetMonthlyCents = agent?.budgetMonthlyCents ?? 0;
-    const spentMonthlyCents = agent?.spentMonthlyCents ?? 0;
-    return {
-      policyId: "",
-      companyId: resolvedCompanyId ?? "",
-      scopeType: "agent",
-      scopeId: agent?.id ?? routeAgentRef,
-      scopeName: agent?.name ?? "Agent",
-      metric: "billed_cents",
-      windowKind: "calendar_month_utc",
-      amount: budgetMonthlyCents,
-      observedAmount: spentMonthlyCents,
-      remainingAmount: Math.max(0, budgetMonthlyCents - spentMonthlyCents),
-      utilizationPercent:
-        budgetMonthlyCents > 0 ? Number(((spentMonthlyCents / budgetMonthlyCents) * 100).toFixed(2)) : 0,
-      warnPercent: 80,
-      hardStopEnabled: true,
-      notifyEnabled: true,
-      isActive: budgetMonthlyCents > 0,
-      status: budgetMonthlyCents > 0 && spentMonthlyCents >= budgetMonthlyCents ? "hard_stop" : "ok",
-      paused: agent?.status === "paused",
-      pauseReason: agent?.pauseReason ?? null,
-      windowStart: new Date(),
-      windowEnd: new Date(),
-    } satisfies BudgetPolicySummary;
+  const agentBudgetSummaries = useMemo(() => {
+    const agentId = agent?.id ?? routeAgentRef;
+    const ALL_METRICS: ("billed_cents" | "total_tokens")[] = ["billed_cents", "total_tokens"];
+    return ALL_METRICS.map((metric) => {
+      const matched = budgetOverview?.policies.find(
+        (policy) => policy.scopeType === "agent" && policy.scopeId === agentId && policy.metric === metric,
+      );
+      if (matched) return matched;
+      return {
+        policyId: "",
+        companyId: resolvedCompanyId ?? "",
+        scopeType: "agent",
+        scopeId: agentId,
+        scopeName: agent?.name ?? "Agent",
+        metric,
+        windowKind: "calendar_month_utc",
+        amount: 0,
+        observedAmount: 0,
+        remainingAmount: 0,
+        utilizationPercent: 0,
+        warnPercent: 80,
+        hardStopEnabled: true,
+        notifyEnabled: true,
+        isActive: false,
+        status: "ok" as const,
+        paused: agent?.status === "paused",
+        pauseReason: agent?.pauseReason ?? null,
+        windowStart: new Date(),
+        windowEnd: new Date(),
+      } satisfies BudgetPolicySummary;
+    });
   }, [agent, budgetOverview?.policies, resolvedCompanyId, routeAgentRef]);
   const mobileLiveRun = useMemo(
     () => (heartbeats ?? []).find((r) => r.status === "running" || r.status === "queued") ?? null,
@@ -886,7 +900,9 @@ export function AgentDetail() {
           ? "configuration"
           : activeView === "skills"
             ? "skills"
-            : activeView === "runs"
+            : activeView === "messaging"
+              ? "messaging"
+              : activeView === "runs"
               ? "runs"
               : activeView === "budget"
                 ? "budget"
@@ -931,12 +947,13 @@ export function AgentDetail() {
   });
 
   const budgetMutation = useMutation({
-    mutationFn: (amount: number) =>
+    mutationFn: ({ amount, metric }: { amount: number; metric: "billed_cents" | "total_tokens" }) =>
       budgetsApi.upsertPolicy(resolvedCompanyId!, {
         scopeType: "agent",
         scopeId: agent?.id ?? routeAgentRef,
         amount,
         windowKind: "calendar_month_utc",
+        metric,
       }),
     onSuccess: () => {
       if (!resolvedCompanyId) return;
@@ -986,11 +1003,13 @@ export function AgentDetail() {
       crumbs.push({ label: agentName, href: `/agents/${canonicalAgentRef}/dashboard` });
       if (urlRunId) {
         crumbs.push({ label: "Runs", href: `/agents/${canonicalAgentRef}/runs` });
-        crumbs.push({ label: `Run ${urlRunId.slice(0, 8)}` });
+        crumbs.push({ label: `Run ${urlRunId}` });
       } else if (activeView === "instructions") {
         crumbs.push({ label: "Instructions" });
       } else if (activeView === "configuration") {
         crumbs.push({ label: "Configuration" });
+      } else if (activeView === "messaging") {
+        crumbs.push({ label: "Messaging" });
       // } else if (activeView === "skills") { // TODO: bring back later
       //   crumbs.push({ label: "Skills" });
       } else if (activeView === "runs") {
@@ -1236,6 +1255,7 @@ export function AgentDetail() {
               { value: "dashboard", label: "Dashboard" },
               { value: "instructions", label: "Instructions" },
               { value: "skills", label: "Skills" },
+              { value: "messaging", label: "Messaging" },
               { value: "configuration", label: "Configuration" },
               { value: "runs", label: "Runs" },
               { value: "budget", label: "Budget" },
@@ -1320,6 +1340,7 @@ export function AgentDetail() {
           runtimeState={runtimeState}
           agentId={agent.id}
           agentRouteId={canonicalAgentRef}
+          isTokens={selectedCompany?.budgetMetric === "total_tokens"}
         />
       )}
 
@@ -1354,6 +1375,10 @@ export function AgentDetail() {
         />
       )}
 
+      {activeView === "messaging" && (
+        <AgentMessagingTab agent={agent} onUpdated={() => queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(routeAgentRef) })} />
+      )}
+
       {activeView === "runs" && (
         <RunsTab
           runs={heartbeats ?? []}
@@ -1363,17 +1388,22 @@ export function AgentDetail() {
           selectedRunId={urlRunId ?? null}
           adapterType={agent.adapterType}
           adapterConfig={agent.adapterConfig}
+          assignedIssues={assignedIssues}
         />
       )}
 
       {activeView === "budget" && resolvedCompanyId ? (
-        <div className="max-w-3xl">
-          <BudgetPolicyCard
-            summary={agentBudgetSummary}
-            isSaving={budgetMutation.isPending}
-            onSave={(amount) => budgetMutation.mutate(amount)}
-            variant="plain"
-          />
+        <div className="max-w-3xl space-y-4">
+          {agentBudgetSummaries.map((summary) => (
+            <BudgetPolicyCard
+              key={summary.metric}
+              summary={summary}
+              metric={summary.metric}
+              isSaving={budgetMutation.isPending}
+              onSave={(amount) => budgetMutation.mutate({ amount, metric: summary.metric })}
+              variant="plain"
+            />
+          ))}
         </div>
       ) : null}
     </div>
@@ -1487,6 +1517,7 @@ function AgentOverview({
   runtimeState,
   agentId,
   agentRouteId,
+  isTokens,
 }: {
   agent: AgentDetailRecord;
   runs: HeartbeatRun[];
@@ -1494,6 +1525,7 @@ function AgentOverview({
   runtimeState?: AgentRuntimeState;
   agentId: string;
   agentRouteId: string;
+  isTokens?: boolean;
 }) {
   return (
     <div className="space-y-8">
@@ -1552,7 +1584,7 @@ function AgentOverview({
       {/* Costs */}
       <div className="space-y-3">
         <h3 className="text-sm font-medium">Costs</h3>
-        <CostsSection runtimeState={runtimeState} runs={runs} />
+        <CostsSection runtimeState={runtimeState} runs={runs} isTokens={isTokens} />
       </div>
     </div>
   );
@@ -1563,9 +1595,11 @@ function AgentOverview({
 function CostsSection({
   runtimeState,
   runs,
+  isTokens,
 }: {
   runtimeState?: AgentRuntimeState;
   runs: HeartbeatRun[];
+  isTokens?: boolean;
 }) {
   const runsWithCost = runs
     .filter((r) => {
@@ -1592,8 +1626,10 @@ function CostsSection({
               <span className="text-lg font-semibold">{formatTokens(runtimeState.totalCachedInputTokens)}</span>
             </div>
             <div>
-              <span className="text-xs text-muted-foreground block">Total cost</span>
-              <span className="text-lg font-semibold">{formatCents(runtimeState.totalCostCents)}</span>
+              <span className="text-xs text-muted-foreground block">{isTokens ? "Total tokens" : "Total cost"}</span>
+              <span className="text-lg font-semibold">{isTokens
+                ? formatTokens(runtimeState.totalInputTokens + runtimeState.totalOutputTokens)
+                : formatCents(runtimeState.totalCostCents)}</span>
             </div>
           </div>
         </div>
@@ -1616,7 +1652,7 @@ function CostsSection({
                 return (
                   <tr key={run.id} className="border-b border-border last:border-b-0">
                     <td className="px-3 py-2">{formatDate(run.createdAt)}</td>
-                    <td className="px-3 py-2 font-mono">{run.id.slice(0, 8)}</td>
+                    <td className="px-3 py-2 font-mono">{run.id}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatTokens(metrics.input)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatTokens(metrics.output)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">
@@ -1937,13 +1973,14 @@ function ConfigurationTab({
             </div>
             <ToggleSwitch
               checked={canCreateAgents}
-              onCheckedChange={() =>
+              onCheckedChange={() => {
+                const newCanCreateAgents = !canCreateAgents;
                 updatePermissions.mutate({
                   canCreateAgents: !canCreateAgents,
                   canCreateSkills,
                   canAssignTasks: !canCreateAgents ? true : canAssignTasks,
                 })
-              }
+              }}
               disabled={updatePermissions.isPending}
             />
           </div>
@@ -1985,6 +2022,35 @@ function ConfigurationTab({
               disabled={updatePermissions.isPending || taskAssignLocked}
             />
           </div>
+          {agent.adapterType === "hermes_local" && (
+            <div className="flex items-center justify-between gap-4 text-sm">
+              <div className="space-y-1">
+                <div>Docker access</div>
+                <p className="text-xs text-muted-foreground">
+                  Allow this agent to manage Docker containers (restart, logs, stop, start).
+                </p>
+              </div>
+              <ToggleSwitch
+                checked={
+                  (
+                    (agent.adapterConfig as Record<string, unknown>)?.docker as Record<string, unknown>
+                  )?.enabled === true
+                }
+                onCheckedChange={() => {
+                  const currentDocker = (
+                    (agent.adapterConfig as Record<string, unknown>)?.docker as Record<string, unknown>
+                  ) ?? {};
+                  updateAgent.mutate({
+                    adapterConfig: {
+                      ...agent.adapterConfig,
+                      docker: { enabled: !(currentDocker.enabled === true) },
+                    },
+                  });
+                }}
+                disabled={updateAgent.isPending}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -2011,6 +2077,7 @@ export function PromptsTab({
   const queryClient = useQueryClient();
   const { selectedCompanyId } = useCompany();
   const { isMobile } = useSidebar();
+  const { pushToast } = useToastActions();
   const [selectedFile, setSelectedFile] = useState<string>("AGENTS.md");
   const [showFilePanel, setShowFilePanel] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
@@ -2033,6 +2100,14 @@ export function PromptsTab({
     entryFile: string;
     selectedFile: string;
   } | null>(null);
+  const [rolePickerOpen, setRolePickerOpen] = useState(false);
+  const [rolePickerSelected, setRolePickerSelected] = useState<string | null>(null);
+  const [rolePickerSearch, setRolePickerSearch] = useState("");
+  const [rolePickerExpanded, setRolePickerExpanded] = useState<Set<string>>(new Set());
+  const [saveAsRoleOpen, setSaveAsRoleOpen] = useState(false);
+  const [saveAsRoleName, setSaveAsRoleName] = useState("");
+  const [saveAsRoleDesc, setSaveAsRoleDesc] = useState("");
+  const [saveAsRoleCat, setSaveAsRoleCat] = useState("");
 
   useEffect(() => {
     setSelectedFile("AGENTS.md");
@@ -2143,6 +2218,26 @@ export function PromptsTab({
     },
   });
 
+  const { data: companyRoles } = useQuery({
+    queryKey: queryKeys.companyRoles.list(selectedCompanyId ?? ""),
+    queryFn: () => companyRolesApi.list(selectedCompanyId!),
+    enabled: Boolean(selectedCompanyId) && rolePickerOpen,
+  });
+
+  const applyRoleMarkdown = useMutation({
+    mutationFn: async (roleId: string) => {
+      if (!selectedCompanyId) throw new Error("No company selected");
+      const role = await companyRolesApi.detail(selectedCompanyId, roleId);
+      return role.markdown;
+    },
+    onSuccess: (markdown) => {
+      setDraft(markdown);
+      setRolePickerOpen(false);
+      setRolePickerSelected(null);
+      setRolePickerSearch("");
+    },
+  });
+
   useEffect(() => {
     if (!bundle) return;
     if (!bundleMatchesDraft) {
@@ -2249,6 +2344,31 @@ export function PromptsTab({
   const fileDirty = draft !== null && draft !== currentContent;
   const isDirty = bundleDirty || fileDirty;
   const isSaving = updateBundle.isPending || saveFile.isPending || deleteFile.isPending || awaitingRefresh;
+
+  const saveAsRole = useMutation({
+    mutationFn: async () => {
+      if (!selectedCompanyId) throw new Error("No company selected");
+      if (!saveAsRoleName.trim()) throw new Error("Name is required");
+      return companyRolesApi.create(selectedCompanyId, {
+        name: saveAsRoleName.trim(),
+        description: saveAsRoleDesc.trim() || null,
+        category: saveAsRoleCat.trim() || null,
+        markdown: displayValue,
+      });
+    },
+    onSuccess: () => {
+      pushToast({ title: "Role created", body: `"${saveAsRoleName.trim()}" saved to company roles`, tone: "success" });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyRoles.list(selectedCompanyId ?? "") });
+      setSaveAsRoleOpen(false);
+      setSaveAsRoleName("");
+      setSaveAsRoleDesc("");
+      setSaveAsRoleCat("");
+    },
+    onError: (err) => {
+      const message = err instanceof ApiError ? err.message : "Failed to create role";
+      pushToast({ title: "Failed to create role", body: message, tone: "error" });
+    },
+  });
 
   useEffect(() => { onSavingChange(isSaving); }, [onSavingChange, isSaving]);
   useEffect(() => { onDirtyChange(isDirty); }, [onDirtyChange, isDirty]);
@@ -2687,6 +2807,27 @@ export function PromptsTab({
                   <Copy className="h-3.5 w-3.5" />
                 </CopyText>
               )}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setSaveAsRoleOpen(true)}
+                title="Save current content as a new company role"
+                disabled={!displayValue.trim()}
+              >
+                <Upload className="h-3.5 w-3.5 mr-1.5" />
+                Save as role
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setRolePickerOpen(true)}
+                title="Load content from a role template"
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Load from role
+              </Button>
               {selectedFileExists && !selectedFileSummary?.deprecated && selectedOrEntryFile !== currentEntryFile && (
                 <Button
                   type="button"
@@ -2736,6 +2877,153 @@ export function PromptsTab({
           )}
         </div>
       </div>
+
+      <Dialog open={saveAsRoleOpen} onOpenChange={(open) => {
+        setSaveAsRoleOpen(open);
+        if (!open) { setSaveAsRoleName(""); setSaveAsRoleDesc(""); setSaveAsRoleCat(""); }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save as Role</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Name *</span>
+              <Input
+                value={saveAsRoleName}
+                onChange={(e) => setSaveAsRoleName(e.target.value)}
+                placeholder="e.g. Marketing Agent"
+                autoFocus
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Description</span>
+              <textarea
+                value={saveAsRoleDesc}
+                onChange={(e) => setSaveAsRoleDesc(e.target.value)}
+                placeholder="Optional description"
+                rows={2}
+                className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground resize-none"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Category</span>
+              <Input
+                value={saveAsRoleCat}
+                onChange={(e) => setSaveAsRoleCat(e.target.value)}
+                placeholder="e.g. marketing"
+              />
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Content from <span className="font-mono">{selectedOrEntryFile}</span> will be saved as a new company role.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSaveAsRoleOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => saveAsRole.mutate()}
+              disabled={!saveAsRoleName.trim() || saveAsRole.isPending}
+            >
+              {saveAsRole.isPending ? "Saving..." : "Create Role"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={rolePickerOpen} onOpenChange={(open) => {
+        setRolePickerOpen(open);
+        if (!open) { setRolePickerSelected(null); setRolePickerSearch(""); }
+      }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Load from Role</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center gap-2 border border-border rounded-md px-2 py-1.5">
+            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <input
+              value={rolePickerSearch}
+              onChange={(e) => setRolePickerSearch(e.target.value)}
+              placeholder="Filter roles..."
+              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          <div className="max-h-72 overflow-y-auto space-y-1">
+            {(() => {
+              const q = rolePickerSearch.toLowerCase();
+              const roles = (companyRoles ?? []).filter((r) =>
+                !q || r.name.toLowerCase().includes(q) || r.description?.toLowerCase().includes(q) || r.category?.toLowerCase().includes(q),
+              );
+              const grouped: Record<string, typeof roles> = {};
+              for (const r of roles) {
+                const cat = r.category || "Uncategorized";
+                if (!grouped[cat]) grouped[cat] = [];
+                grouped[cat].push(r);
+              }
+              if (roles.length === 0) {
+                return <p className="text-sm text-muted-foreground py-4 text-center">No roles found.</p>;
+              }
+              return Object.entries(grouped).map(([cat, catRoles]) => {
+                const isExpanded = rolePickerExpanded.has(cat);
+                return (
+                  <div key={cat} className="rounded-md border border-border overflow-hidden">
+                    <div
+                      className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent/30 transition-colors select-none"
+                      onClick={() => {
+                        setRolePickerExpanded((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(cat)) next.delete(cat); else next.add(cat);
+                          return next;
+                        });
+                      }}
+                    >
+                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                      <span className="font-medium flex-1">{cat}</span>
+                      <span className="text-xs text-muted-foreground">{catRoles.length}</span>
+                    </div>
+                    {isExpanded && (
+                      <div className="border-t border-border">
+                        {catRoles.map((role) => (
+                          <label
+                            key={role.id}
+                            className={cn(
+                              "flex items-start gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-accent/30 transition-colors",
+                              rolePickerSelected === role.id && "bg-accent/50",
+                            )}
+                            onClick={() => setRolePickerSelected(role.id)}
+                          >
+                            <input
+                              type="radio"
+                              name="rolePick"
+                              checked={rolePickerSelected === role.id}
+                              onChange={() => setRolePickerSelected(role.id)}
+                              className="mt-0.5"
+                            />
+                            <span>
+                              <span className="font-medium">{role.name}</span>
+                              {role.description && (
+                                <span className="block text-xs text-muted-foreground">{role.description}</span>
+                              )}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+            })()}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRolePickerOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => { if (rolePickerSelected) applyRoleMarkdown.mutate(rolePickerSelected); }}
+              disabled={!rolePickerSelected || applyRoleMarkdown.isPending}
+            >
+              {applyRoleMarkdown.isPending ? "Loading..." : "Load"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
@@ -2817,7 +3105,7 @@ function RunListItem({ run, isSelected, agentId }: { run: HeartbeatRun; isSelect
       <div className="flex items-center gap-2">
         <StatusIcon className={cn("h-3.5 w-3.5 shrink-0", statusInfo.color, run.status === "running" && "animate-spin")} />
         <span className="font-mono text-xs text-muted-foreground">
-          {run.id.slice(0, 8)}
+          {run.id}
         </span>
         <Badge variant="ghost" className={cn(
           "px-1.5 text-(length:--text-nano)",
@@ -2856,6 +3144,7 @@ function RunsTab({
   selectedRunId,
   adapterType,
   adapterConfig,
+  assignedIssues,
 }: {
   runs: HeartbeatRun[];
   companyId: string;
@@ -2864,6 +3153,7 @@ function RunsTab({
   selectedRunId: string | null;
   adapterType: string;
   adapterConfig: Record<string, unknown>;
+  assignedIssues: { id: string; title: string; status: string; priority: string; identifier?: string | null; createdAt: Date }[];
 }) {
   const { isMobile } = useSidebar();
 
@@ -2890,9 +3180,9 @@ function RunsTab({
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors no-underline"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Back to runs
+            {"Back to runs"}
           </Link>
-          <RunDetail key={selectedRun.id} run={selectedRun} agentRouteId={agentRouteId} adapterType={adapterType} adapterConfig={adapterConfig} />
+          <RunDetail key={selectedRun.id} run={selectedRun} agentRouteId={agentRouteId} adapterType={adapterType} adapterConfig={adapterConfig} assignedIssues={assignedIssues} />
         </div>
       );
     }
@@ -2923,7 +3213,7 @@ function RunsTab({
       {/* Right: run detail — natural height, page scrolls */}
       {selectedRun && (
         <div className="flex-1 min-w-0 pl-4">
-          <RunDetail key={selectedRun.id} run={selectedRun} agentRouteId={agentRouteId} adapterType={adapterType} adapterConfig={adapterConfig} />
+          <RunDetail key={selectedRun.id} run={selectedRun} agentRouteId={agentRouteId} adapterType={adapterType} adapterConfig={adapterConfig} assignedIssues={assignedIssues} />
         </div>
       )}
     </div>
@@ -2932,7 +3222,7 @@ function RunsTab({
 
 /* ---- Run Detail (expanded) ---- */
 
-function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }: { run: HeartbeatRun; agentRouteId: string; adapterType: string; adapterConfig: Record<string, unknown> }) {
+function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig, assignedIssues }: { run: HeartbeatRun; agentRouteId: string; adapterType: string; adapterConfig: Record<string, unknown>; assignedIssues: { id: string; title: string; status: string; priority: string; identifier?: string | null; createdAt: Date }[] }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { data: hydratedRun } = useQuery({
@@ -3319,6 +3609,8 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
           )}
         </div>
 
+        {/* Task row (deferred — primaryIssue not wired in this build) */}
+
         {/* Collapsible session row */}
         {hasSession && (
           <div className="border-t border-border">
@@ -3444,6 +3736,7 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
   const [isFollowing, setIsFollowing] = useState(false);
   const [isStreamingConnected, setIsStreamingConnected] = useState(false);
   const [transcriptMode, setTranscriptMode] = useState<TranscriptMode>("nice");
+  const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set());
   const logEndRef = useRef<HTMLDivElement>(null);
   const pendingLogLineRef = useRef("");
   const seenProgressLogLineKeysRef = useRef<Set<string>>(new Set());
@@ -3843,6 +4136,7 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
 
   useEffect(() => {
     setTranscriptMode("nice");
+    setHiddenTypes(new Set());
   }, [run.id]);
 
   if (loading && logLoading) {
@@ -3875,11 +4169,44 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
         <RunInvocationCard payload={adapterInvokePayload} censorUsernameInLogs={censorUsernameInLogs} />
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-medium text-muted-foreground">
           Transcript ({transcript.length})
         </span>
         <div className="flex items-center gap-2">
+          {transcriptMode === "nice" && (
+            <div className="inline-flex rounded-lg border border-border/70 bg-background/70 p-0.5">
+              {([
+                { key: "assistant", label: "ASSISTANT" },
+                { key: "thinking", label: "THINKING" },
+                { key: "system_group", label: "SYSTEM" },
+              ] as const).map((toggle) => {
+                const active = !hiddenTypes.has(toggle.key);
+                return (
+                  <button
+                    key={toggle.key}
+                    type="button"
+                    className={cn(
+                      "rounded-md px-2 py-1 text-[10px] font-semibold tracking-[0.12em] transition-colors",
+                      active
+                        ? "bg-accent text-foreground shadow-sm"
+                        : "text-muted-foreground/50 hover:text-muted-foreground",
+                    )}
+                    onClick={() => {
+                      setHiddenTypes((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(toggle.key)) next.delete(toggle.key);
+                        else next.add(toggle.key);
+                        return next;
+                      });
+                    }}
+                  >
+                    {toggle.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="inline-flex rounded-lg border border-border/70 bg-background/70 p-0.5">
             {(["nice", "raw"] as const).map((mode) => (
               <button

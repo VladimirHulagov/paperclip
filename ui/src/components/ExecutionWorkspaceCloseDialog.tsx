@@ -5,7 +5,8 @@ import { Loader2 } from "lucide-react";
 import { executionWorkspacesApi } from "../api/execution-workspaces";
 import { useToastActions } from "../context/ToastContext";
 import { queryKeys } from "../lib/queryKeys";
-import { formatDateTime, issueUrl } from "../lib/utils";
+import { issueUrl, formatDateTime } from "../lib/utils";
+import { useTimeSettings } from "../hooks/useTimeSettings";
 import { Button } from "./ui/button";
 import {
   Dialog,

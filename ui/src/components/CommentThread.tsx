@@ -22,7 +22,8 @@ import { AgentIcon } from "./AgentIconPicker";
 import { formatAssigneeUserLabel } from "../lib/assignees";
 import { formatTimelineWorkspaceLabel, type IssueTimelineAssignee, type IssueTimelineEvent } from "../lib/issue-timeline-events";
 import { timeAgo } from "../lib/timeAgo";
-import { cn, formatDateTime } from "../lib/utils";
+import { cn } from "../lib/utils";
+import { useTimeSettings } from "../hooks/useTimeSettings";
 import { restoreSubmittedCommentDraft } from "../lib/comment-submit-draft";
 import { PluginSlotOutlet } from "@/plugins/slots";
 
@@ -88,8 +89,9 @@ interface CommentThreadProps {
     vote: FeedbackVoteValue,
     options?: { allowSharing?: boolean; reason?: string },
   ) => Promise<void>;
-  onAdd: (body: string, reopen?: boolean, reassignment?: CommentReassignment) => Promise<void>;
+  onAdd: (body: string, reopen?: boolean, reassignment?: CommentReassignment, interrupt?: boolean) => Promise<void>;
   issueStatus?: string;
+  hasActiveRun?: boolean;
   agentMap?: Map<string, Agent>;
   currentUserId?: string | null;
   imageUploadHandler?: (file: File) => Promise<string>;
@@ -343,6 +345,7 @@ function CommentCard({
   queued?: boolean;
   externalReferences?: MarkdownExternalReferenceMap;
 }) {
+  const { formatDateTime: fmtDateTime } = useTimeSettings();
   const isHighlighted = highlightCommentId === comment.id;
   const isPending = comment.clientStatus === "pending";
   const isQueued = queued || comment.queueState === "queued" || comment.clientStatus === "queued";
@@ -406,7 +409,7 @@ function CommentCard({
               href={`#comment-${comment.id}`}
               className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
             >
-              {formatDateTime(comment.createdAt)}
+              {fmtDateTime(comment.createdAt)}
             </a>
           )}
           {!isDeleted ? <CopyMarkdownButton text={comment.body} /> : null}

@@ -44,26 +44,26 @@ function currentWeekRange(): { from: string; to: string } {
   return { from: mon.toISOString(), to: sun.toISOString() };
 }
 
-function ProviderTabLabel({ provider, rows }: { provider: string; rows: CostByProviderModel[] }) {
+function ProviderTabLabel({ provider, rows, isTokens }: { provider: string; rows: CostByProviderModel[]; isTokens?: boolean }) {
   const totalTokens = rows.reduce((sum, row) => sum + row.inputTokens + row.cachedInputTokens + row.outputTokens, 0);
   const totalCost = rows.reduce((sum, row) => sum + row.costCents, 0);
   return (
     <span className="flex items-center gap-1.5">
       <span>{providerDisplayName(provider)}</span>
       <span className="font-mono text-xs text-muted-foreground">{formatTokens(totalTokens)}</span>
-      <span className="text-xs text-muted-foreground">{formatCents(totalCost)}</span>
+      {!isTokens && <span className="text-xs text-muted-foreground">{formatCents(totalCost)}</span>}
     </span>
   );
 }
 
-function BillerTabLabel({ biller, rows }: { biller: string; rows: CostByBiller[] }) {
+function BillerTabLabel({ biller, rows, isTokens }: { biller: string; rows: CostByBiller[]; isTokens?: boolean }) {
   const totalTokens = rows.reduce((sum, row) => sum + row.inputTokens + row.cachedInputTokens + row.outputTokens, 0);
   const totalCost = rows.reduce((sum, row) => sum + row.costCents, 0);
   return (
     <span className="flex items-center gap-1.5">
       <span>{providerDisplayName(biller)}</span>
       <span className="font-mono text-xs text-muted-foreground">{formatTokens(totalTokens)}</span>
-      <span className="text-xs text-muted-foreground">{formatCents(totalCost)}</span>
+      {!isTokens && <span className="text-xs text-muted-foreground">{formatCents(totalCost)}</span>}
     </span>
   );
 }
@@ -147,9 +147,10 @@ function FinanceSummaryCard({
 }
 
 export function Costs() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedCompanyId, selectedCompany } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
+  const isTokens = selectedCompany?.budgetMetric === "total_tokens";
 
   const [mainTab, setMainTab] = useState<"overview" | "budgets" | "providers" | "billers" | "finance">("overview");
   const [activeProvider, setActiveProvider] = useState("all");
@@ -213,12 +214,14 @@ export function Costs() {
       scopeId: string;
       amount: number;
       windowKind: BudgetPolicySummary["windowKind"];
+      metric: "billed_cents" | "total_tokens";
     }) =>
       budgetsApi.upsertPolicy(companyId, {
         scopeType: input.scopeType,
         scopeId: input.scopeId,
         amount: input.amount,
         windowKind: input.windowKind,
+        metric: input.metric,
       }),
     onSuccess: invalidateBudgetViews,
   });
@@ -468,7 +471,7 @@ export function Costs() {
             {providerKeys.length > 0 ? (
               <>
                 <span className="font-mono text-xs text-muted-foreground">{formatTokens(allTokens)}</span>
-                <span className="text-xs text-muted-foreground">{formatCents(allCents)}</span>
+                {!isTokens && <span className="text-xs text-muted-foreground">{formatCents(allCents)}</span>}
               </>
             ) : null}
           </span>
@@ -476,7 +479,7 @@ export function Costs() {
       },
       ...providerKeys.map((provider) => ({
         value: provider,
-        label: <ProviderTabLabel provider={provider} rows={byProvider.get(provider) ?? []} />,
+        label: <ProviderTabLabel provider={provider} rows={byProvider.get(provider) ?? []} isTokens={isTokens} />,
       })),
     ];
   }, [byProvider]);
@@ -500,7 +503,7 @@ export function Costs() {
             {billerKeys.length > 0 ? (
               <>
                 <span className="font-mono text-xs text-muted-foreground">{formatTokens(allTokens)}</span>
-                <span className="text-xs text-muted-foreground">{formatCents(allCents)}</span>
+                {!isTokens && <span className="text-xs text-muted-foreground">{formatCents(allCents)}</span>}
               </>
             ) : null}
           </span>
@@ -508,7 +511,7 @@ export function Costs() {
       },
       ...billerKeys.map((biller) => ({
         value: biller,
-        label: <BillerTabLabel biller={biller} rows={byBiller.get(biller) ?? []} />,
+        label: <BillerTabLabel biller={biller} rows={byBiller.get(biller) ?? []} isTokens={isTokens} />,
       })),
     ];
   }, [byBiller]);
@@ -527,6 +530,27 @@ export function Costs() {
     agent: budgetPolicies.filter((policy) => policy.scopeType === "agent"),
     project: budgetPolicies.filter((policy) => policy.scopeType === "project"),
   }), [budgetPolicies]);
+
+  const budgetScopeGroups = useMemo(() => {
+    const ALL_METRICS: ("billed_cents" | "total_tokens")[] = ["billed_cents", "total_tokens"];
+    const groups: { scopeType: "company" | "agent" | "project"; scopeId: string; scopeName: string; policies: Map<string, BudgetPolicySummary> }[] = [];
+    const seen = new Set<string>();
+    for (const policy of budgetPolicies) {
+      const key = `${policy.scopeType}:${policy.scopeId}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        const policyMap = new Map<string, BudgetPolicySummary>();
+        for (const m of ALL_METRICS) {
+          const found = budgetPolicies.find(
+            (p) => p.scopeType === policy.scopeType && p.scopeId === policy.scopeId && p.metric === m,
+          );
+          if (found) policyMap.set(m, found);
+        }
+        groups.push({ scopeType: policy.scopeType, scopeId: policy.scopeId, scopeName: policy.scopeName, policies: policyMap });
+      }
+    }
+    return groups;
+  }, [budgetPolicies]);
 
   if (!selectedCompanyId) {
     return <EmptyState icon={DollarSign} message="Select a company to view costs." />;
@@ -582,8 +606,10 @@ export function Costs() {
 
           <div className="grid gap-3 lg:grid-cols-4">
             <MetricTile
-              label="Inference spend"
-              value={formatCents(spendData?.summary.spendCents ?? 0)}
+              label={isTokens ? "Inference usage" : "Inference spend"}
+              value={isTokens
+                ? formatTokens(spendData?.summary.inputTokens ?? 0 + (spendData?.summary.cachedInputTokens ?? 0) + (spendData?.summary.outputTokens ?? 0))
+                : formatCents(spendData?.summary.spendCents ?? 0)}
               subtitle={`${formatTokens(inferenceTokenTotal)} tokens across request-scoped events`}
               icon={DollarSign}
             />
@@ -598,23 +624,29 @@ export function Costs() {
                 activeBudgetIncidents.length > 0
                   ? `${budgetData?.pausedAgentCount ?? 0} agents paused · ${budgetData?.pausedProjectCount ?? 0} projects paused`
                   : spendData?.summary.budgetCents && spendData.summary.budgetCents > 0
-                    ? `${formatCents(spendData.summary.spendCents)} of ${formatCents(spendData.summary.budgetCents)}`
+                    ? isTokens
+                      ? `${formatTokens(spendData.summary.spendCents)} of ${formatTokens(spendData.summary.budgetCents)}`
+                      : `${formatCents(spendData.summary.spendCents)} of ${formatCents(spendData.summary.budgetCents)}`
                     : "No monthly cap configured"
               }
               icon={Coins}
             />
-            <MetricTile
-              label="Finance net"
-              value={formatCents(financeData?.summary.netCents ?? 0)}
-              subtitle={`${formatCents(financeData?.summary.debitCents ?? 0)} debits · ${formatCents(financeData?.summary.creditCents ?? 0)} credits`}
-              icon={ReceiptText}
-            />
-            <MetricTile
-              label="Finance events"
-              value={String(financeData?.summary.eventCount ?? 0)}
-              subtitle={`${formatCents(financeData?.summary.estimatedDebitCents ?? 0)} estimated in range`}
-              icon={ArrowUpRight}
-            />
+            {!isTokens && (
+              <MetricTile
+                label="Finance net"
+                value={formatCents(financeData?.summary.netCents ?? 0)}
+                subtitle={`${formatCents(financeData?.summary.debitCents ?? 0)} debits · ${formatCents(financeData?.summary.creditCents ?? 0)} credits`}
+                icon={ReceiptText}
+              />
+            )}
+            {!isTokens && (
+              <MetricTile
+                label="Finance events"
+                value={String(financeData?.summary.eventCount ?? 0)}
+                subtitle={`${formatCents(financeData?.summary.estimatedDebitCents ?? 0)} estimated in range`}
+                icon={ArrowUpRight}
+              />
+            )}
           </div>
       </div>
 
@@ -655,7 +687,7 @@ export function Costs() {
                 </div>
               ) : null}
 
-              <div className="grid gap-4 xl:grid-cols-(--gtc-31)">
+              <div className={isTokens ? "space-y-4" : "grid gap-4 xl:grid-cols-(--gtc-31)"}>
                 <Card>
                   <CardHeader className="px-5 pt-5 pb-2">
                     <CardTitle className="text-base">Inference ledger</CardTitle>
@@ -667,20 +699,28 @@ export function Costs() {
                     <div className="flex flex-wrap items-end justify-between gap-3">
                       <div>
                         <div className="text-3xl font-semibold tabular-nums">
-                          {formatCents(spendData?.summary.spendCents ?? 0)}
+                          {isTokens
+                            ? formatTokens(inferenceTokenTotal)
+                            : formatCents(spendData?.summary.spendCents ?? 0)}
                         </div>
                         <div className="mt-1 text-sm text-muted-foreground">
-                          {spendData?.summary.budgetCents && spendData.summary.budgetCents > 0
-                            ? `Budget ${formatCents(spendData.summary.budgetCents)}`
-                            : "Unlimited budget"}
+                          {isTokens
+                            ? (spendData?.summary.budgetCents && spendData.summary.budgetCents > 0
+                              ? `Budget ${formatTokens(spendData.summary.budgetCents)}`
+                              : "Unlimited budget")
+                            : (spendData?.summary.budgetCents && spendData.summary.budgetCents > 0
+                              ? `Budget ${formatCents(spendData.summary.budgetCents)}`
+                              : "Unlimited budget")}
                         </div>
                       </div>
-                      <div className="border border-border px-4 py-3 text-right">
-                        <div className="text-(length:--text-micro) uppercase tracking-(--tracking-eyebrow) text-muted-foreground">usage</div>
-                        <div className="mt-1 text-lg font-medium tabular-nums">
-                          {formatTokens(inferenceTokenTotal)}
+                      {!isTokens && (
+                        <div className="border border-border px-4 py-3 text-right">
+                          <div className="text-(length:--text-micro) uppercase tracking-(--tracking-eyebrow) text-muted-foreground">usage</div>
+                          <div className="mt-1 text-lg font-medium tabular-nums">
+                            {formatTokens(inferenceTokenTotal)}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                     {spendData?.summary.budgetCents && spendData.summary.budgetCents > 0 ? (
                       <div className="space-y-2">
@@ -705,13 +745,15 @@ export function Costs() {
                   </CardContent>
                 </Card>
 
-                <FinanceSummaryCard
-                  debitCents={financeData?.summary.debitCents ?? 0}
-                  creditCents={financeData?.summary.creditCents ?? 0}
-                  netCents={financeData?.summary.netCents ?? 0}
-                  estimatedDebitCents={financeData?.summary.estimatedDebitCents ?? 0}
-                  eventCount={financeData?.summary.eventCount ?? 0}
-                />
+                {!isTokens && (
+                  <FinanceSummaryCard
+                    debitCents={financeData?.summary.debitCents ?? 0}
+                    creditCents={financeData?.summary.creditCents ?? 0}
+                    netCents={financeData?.summary.netCents ?? 0}
+                    estimatedDebitCents={financeData?.summary.estimatedDebitCents ?? 0}
+                    eventCount={financeData?.summary.eventCount ?? 0}
+                  />
+                )}
               </div>
 
               <div className="grid gap-4 xl:grid-cols-(--gtc-32)">
@@ -746,7 +788,9 @@ export function Costs() {
                                 {row.agentStatus === "terminated" ? <StatusBadge status="terminated" /> : null}
                               </div>
                               <div className="text-right text-sm tabular-nums">
-                                <div className="font-medium">{formatCents(row.costCents)}</div>
+                                <div className="font-medium">{isTokens
+                                  ? formatTokens(row.inputTokens + row.cachedInputTokens + row.outputTokens)
+                                  : formatCents(row.costCents)}</div>
                                 <div className="text-xs text-muted-foreground">
                                   in {formatTokens(row.inputTokens + row.cachedInputTokens)} · out {formatTokens(row.outputTokens)}
                                 </div>
@@ -783,12 +827,16 @@ export function Costs() {
                                       </div>
                                       <div className="text-right tabular-nums">
                                         <div className="font-medium">
-                                          {formatCents(modelRow.costCents)}
+                                          {isTokens
+                                            ? formatTokens(modelRow.inputTokens + modelRow.cachedInputTokens + modelRow.outputTokens)
+                                            : formatCents(modelRow.costCents)}
                                           <span className="ml-1 font-normal text-muted-foreground">({sharePct}%)</span>
                                         </div>
-                                        <div className="text-muted-foreground">
-                                          {formatTokens(modelRow.inputTokens + modelRow.cachedInputTokens + modelRow.outputTokens)} tok
-                                        </div>
+                                        {!isTokens && (
+                                          <div className="text-muted-foreground">
+                                            {formatTokens(modelRow.inputTokens + modelRow.cachedInputTokens + modelRow.outputTokens)} tok
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   );
@@ -818,7 +866,9 @@ export function Costs() {
                             className="flex items-center justify-between gap-3 border border-border px-3 py-2 text-sm"
                           >
                             <span className="truncate">{row.projectName ?? row.projectId ?? "Unattributed"}</span>
-                            <span className="font-medium tabular-nums">{formatCents(row.costCents)}</span>
+                            <span className="font-medium tabular-nums">{isTokens
+                              ? formatTokens(row.inputTokens + row.cachedInputTokens + row.outputTokens)
+                              : formatCents(row.costCents)}</span>
                           </div>
                         ))
                       )}
@@ -903,8 +953,8 @@ export function Costs() {
 
               <div className="space-y-5">
                 {(["company", "agent", "project"] as const).map((scopeType) => {
-                  const rows = budgetPoliciesByScope[scopeType];
-                  if (rows.length === 0) return null;
+                  const scopeGroups = budgetScopeGroups.filter((g) => g.scopeType === scopeType);
+                  if (scopeGroups.length === 0) return null;
                   return (
                     <section key={scopeType} className="space-y-3">
                       <div>
@@ -917,22 +967,33 @@ export function Costs() {
                               : "Lifetime spend policies for execution-bound projects."}
                         </p>
                       </div>
-                      <div className="grid gap-4 xl:grid-cols-2">
-                        {rows.map((summary) => (
-                          <BudgetPolicyCard
-                            key={summary.policyId}
-                            summary={summary}
-                            isSaving={policyMutation.isPending}
-                            onSave={(amount) =>
-                              policyMutation.mutate({
-                                scopeType: summary.scopeType,
-                                scopeId: summary.scopeId,
-                                amount,
-                                windowKind: summary.windowKind,
-                              })}
-                          />
-                        ))}
-                      </div>
+                      {scopeGroups.map((group) => (
+                        <div key={group.scopeId} className="space-y-1">
+                          <div className="text-sm font-medium text-muted-foreground">{group.scopeName}</div>
+                          <div className="grid gap-4 xl:grid-cols-2">
+                            {(["billed_cents", "total_tokens"] as const).map((metric) => {
+                              const summary = group.policies.get(metric);
+                              if (!summary) return null;
+                              return (
+                                <BudgetPolicyCard
+                                  key={summary.policyId}
+                                  summary={summary}
+                                  metric={metric}
+                                  isSaving={policyMutation.isPending}
+                                  onSave={(amount) =>
+                                    policyMutation.mutate({
+                                      scopeType: group.scopeType,
+                                      scopeId: group.scopeId,
+                                      amount,
+                                      windowKind: summary.windowKind,
+                                      metric,
+                                    })}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </section>
                   );
                 })}
@@ -976,6 +1037,7 @@ export function Costs() {
                           quotaError={quotaErrorsByProvider.get(provider) ?? null}
                           quotaSource={quotaSourcesByProvider.get(provider) ?? null}
                           quotaLoading={quotaLoading}
+                          isTokens={isTokens}
                         />
                       ))}
                     </div>
@@ -996,6 +1058,7 @@ export function Costs() {
                       quotaError={quotaErrorsByProvider.get(provider) ?? null}
                       quotaSource={quotaSourcesByProvider.get(provider) ?? null}
                       quotaLoading={quotaLoading}
+                      isTokens={isTokens}
                     />
                   </TabsContent>
                 ))}
@@ -1029,6 +1092,7 @@ export function Costs() {
                             budgetMonthlyCents={spendData?.summary.budgetCents ?? 0}
                             totalCompanySpendCents={spendData?.summary.spendCents ?? 0}
                             providerRows={providerRows}
+                            isTokens={isTokens}
                           />
                         );
                       })}
@@ -1048,6 +1112,7 @@ export function Costs() {
                         budgetMonthlyCents={spendData?.summary.budgetCents ?? 0}
                         totalCompanySpendCents={spendData?.summary.spendCents ?? 0}
                         providerRows={providerRows}
+                        isTokens={isTokens}
                       />
                     </TabsContent>
                   );
@@ -1058,7 +1123,9 @@ export function Costs() {
         </TabsContent>
 
         <TabsContent value="finance" className="mt-4 space-y-4">
-          {showCustomPrompt ? (
+          {isTokens ? (
+            <p className="text-sm text-muted-foreground">Finance ledger is not applicable in token-budget mode.</p>
+          ) : showCustomPrompt ? (
             <p className="text-sm text-muted-foreground">Select a start and end date to load data.</p>
           ) : financeLoading ? (
             <PageSkeleton variant="costs" />

@@ -12,6 +12,19 @@ export {
   type PatchInstanceExperimentalSettings,
   type PatchInstanceSettings,
   type IssueGraphLivenessAutoRecoveryRequest,
+  messagingSettingsSchema,
+  patchMessagingSettingsSchema,
+  type MessagingSettings,
+  type PatchMessagingSettings,
+  skillsSyncSettingsSchema,
+  patchSkillsSyncSettingsSchema,
+  type SkillsSyncSettings,
+  type PatchSkillsSyncSettings,
+  dayOfWeekSchema,
+  workingHoursSchema,
+  patchWorkingHoursSchema,
+  type WorkingHours,
+  type PatchWorkingHours,
 } from "./instance.js";
 
 export {
@@ -161,6 +174,7 @@ export {
   companySkillInstallCatalogResultSchema,
   companySkillInstallUpdateSchema,
   companySkillResetSchema,
+  companySkillVisibilitySchema,
   type CompanySkillImport,
   type CompanySkillListQuery,
   type CompanySkillProjectScan,
@@ -695,3 +709,22 @@ export {
   type SetPluginState,
   type ListPluginState,
 } from "./plugin.js";
+
+export {
+  roleSourceTypeSchema,
+  roleSourceSchema,
+  companyRoleSchema,
+  companyRoleListItemSchema,
+  companyRoleUsageAgentSchema,
+  companyRoleDetailSchema,
+  roleSourceBrowseEntrySchema,
+  roleSourceBrowseResultSchema,
+  companyRoleCreateSchema,
+  companyRoleImportSchema,
+  companyRoleImportResultSchema,
+  companyRoleVisibilitySchema,
+  roleSourceCreateSchema,
+  type RoleSourceCreate,
+  type CompanyRoleCreate,
+  type CompanyRoleImport,
+} from "./role.js";

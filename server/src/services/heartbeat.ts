@@ -24,7 +24,9 @@ import {
   type RoutineRevisionSnapshotV1,
   type RunLivenessState,
   type SourceTrustMetadata,
+  type WorkingHours,
 } from "@paperclipai/shared";
+import { workingHoursSchema } from "@paperclipai/shared";
 import {
   agents,
   agentConfigRevisions,
@@ -1988,6 +1990,37 @@ function normalizeMaxConcurrentRuns(value: unknown) {
   const parsed = Math.floor(asNumber(value, HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT));
   if (!Number.isFinite(parsed)) return HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT;
   return Math.max(HEARTBEAT_MAX_CONCURRENT_RUNS_MIN, Math.min(HEARTBEAT_MAX_CONCURRENT_RUNS_MAX, parsed));
+}
+
+function normalizeWorkingHours(raw: unknown): WorkingHours {
+  const parsed = workingHoursSchema.safeParse(raw ?? {});
+  return parsed.success ? parsed.data : { enabled: false, start: "09:00", end: "18:00", days: ["mon", "tue", "wed", "thu", "fri"] };
+}
+
+function getTimeInTimezone(date: Date, timezone: string): { day: string; hours: number; minutes: number } {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    weekday: "short",
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(date);
+  const weekday = parts.find((p) => p.type === "weekday")?.value?.toLowerCase() ?? "";
+  const hours = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10);
+  const minutes = parseInt(parts.find((p) => p.type === "minute")?.value ?? "0", 10);
+  const dayMap: Record<string, string> = { mon: "mon", tue: "tue", wed: "wed", thu: "thu", fri: "fri", sat: "sat", sun: "sun" };
+  return { day: dayMap[weekday] ?? "", hours, minutes };
+}
+
+function isWithinWorkingHours(now: Date, wh: WorkingHours, timezone: string): boolean {
+  if (!wh.enabled) return true;
+  const { day, hours, minutes } = getTimeInTimezone(now, timezone);
+  if (!wh.days.includes(day as WorkingHours["days"][number])) return false;
+  const currentMinutes = hours * 60 + minutes;
+  const [startH, startM] = wh.start.split(":").map(Number);
+  const [endH, endM] = wh.end.split(":").map(Number);
+  return currentMinutes >= startH * 60 + startM && currentMinutes < endH * 60 + endM;
 }
 
 interface WakeupOptions {
@@ -9711,6 +9744,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
           heartbeat.dailySpendCentsLimit ??
           heartbeat.dailyBudgetCents,
       ),
+      workingHours: normalizeWorkingHours(heartbeat.workingHours),
     };
   }
 
@@ -16035,6 +16069,11 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
         if (!invokability.invokable) continue;
         const policy = parseHeartbeatPolicy(agent);
         if (!policy.enabled || policy.intervalSec <= 0) continue;
+
+        if (!isWithinWorkingHours(now, policy.workingHours, "UTC")) {
+          skipped += 1;
+          continue;
+        }
 
         if (cutoff) {
           const eligibleIssue = await db

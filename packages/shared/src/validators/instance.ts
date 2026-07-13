@@ -34,6 +34,8 @@ export const instanceGeneralSettingsSchema = z.object({
   // Execution policy. Absent/"any" = unrestricted; "kubernetes" forces the
   // Kubernetes sandbox provider and denies local/ssh execution (cloud_tenant).
   executionMode: z.enum(["kubernetes", "any"]).optional(),
+  timezone: z.string().default("UTC"),
+  timeFormat: z.enum(["12h", "24h"]).default("24h"),
 }).strict();
 
 export const patchInstanceGeneralSettingsSchema = instanceGeneralSettingsSchema.partial();
@@ -90,6 +92,45 @@ export const issueGraphLivenessAutoRecoveryRequestSchema = z.object({
     .optional(),
 }).strict();
 
+export const messagingSettingsSchema = z.object({
+  telegram: z.object({
+    enabled: z.boolean().default(false),
+    botToken: z.string().optional(),
+    chatId: z.string().optional(),
+    allowedUsers: z.string().optional(),
+    defaultTimeout: z.number().min(60).max(3600).default(600),
+  }).optional(),
+}).strict();
+
+export const patchMessagingSettingsSchema = messagingSettingsSchema;
+
+export const skillsSyncSettingsSchema = z.object({
+  repoUrl: z.string().default(""),
+  branch: z.string().default("main"),
+  path: z.string().default("skills/"),
+  token: z.string().default(""),
+  author: z.string().default("Orchestrator <orchestrator@hermes>"),
+}).strict();
+
+export const patchSkillsSyncSettingsSchema = skillsSyncSettingsSchema.partial();
+
+export const dayOfWeekSchema = z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
+
+export const workingHoursSchema = z.object({
+  enabled: z.boolean().default(false),
+  start: z.string().regex(/^\d{2}:\d{2}$/, "Must be HH:MM format").default("09:00"),
+  end: z.string().regex(/^\d{2}:\d{2}$/, "Must be HH:MM format").default("18:00"),
+  days: z.array(dayOfWeekSchema).min(0).default(["mon", "tue", "wed", "thu", "fri"]),
+}).strict();
+
+export const patchWorkingHoursSchema = workingHoursSchema.partial();
+
+export type MessagingSettings = z.infer<typeof messagingSettingsSchema>;
+export type PatchMessagingSettings = z.infer<typeof patchMessagingSettingsSchema>;
+
+export type SkillsSyncSettings = z.infer<typeof skillsSyncSettingsSchema>;
+export type PatchSkillsSyncSettings = z.infer<typeof patchSkillsSyncSettingsSchema>;
+
 export type InstanceGeneralSettings = z.infer<typeof instanceGeneralSettingsSchema>;
 export type PatchInstanceGeneralSettings = z.infer<typeof patchInstanceGeneralSettingsSchema>;
 export type InstanceExperimentalSettings = z.infer<typeof instanceExperimentalSettingsSchema>;
@@ -107,3 +148,6 @@ export const instanceSettingsSchema = z.object({
   createdAt: z.union([z.date(), z.string().datetime()]),
   updatedAt: z.union([z.date(), z.string().datetime()]),
 }).strict();
+
+export type WorkingHours = z.infer<typeof workingHoursSchema>;
+export type PatchWorkingHours = z.infer<typeof patchWorkingHoursSchema>;

@@ -1016,6 +1016,55 @@
       "when": 1783822632557,
       "tag": "0146_routine_activity_gate",
       "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1776374400000,
+      "tag": "0147_token_budget",
+      "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1776374500000,
+      "tag": "0148_instance_messaging",
+      "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1776374600000,
+      "tag": "0149_roles_system",
+      "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1745308800000,
+      "tag": "0150_issue_checklist",
+      "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1745308900000,
+      "tag": "0151_hidden_sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1745309000000,
+      "tag": "0152_instance_working_hours",
+      "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1745309100000,
+      "tag": "0153_hidden_skills_roles",
+      "breakpoints": true
     }
   ]
 }

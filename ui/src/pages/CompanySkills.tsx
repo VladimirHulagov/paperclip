@@ -21,6 +21,7 @@ import type {
   CompanySkillUpdateStatus,
   CompanySkillVersion,
 } from "@paperclipai/shared";
+import type { TeamSkill, TeamSkillDetail } from "@paperclipai/shared";
 import { companySkillsApi } from "../api/companySkills";
 import { agentsApi } from "../api/agents";
 import { useCompany } from "../context/CompanyContext";
@@ -3708,8 +3709,10 @@ export function CompanySkills() {
   }, [searchParams, setSearchParams]);
 
   const skillsQuery = useQuery({
-    queryKey: queryKeys.companySkills.list(selectedCompanyId ?? ""),
-    queryFn: () => companySkillsApi.list(selectedCompanyId!),
+    queryKey: [...queryKeys.companySkills.list(selectedCompanyId ?? "")],
+    queryFn: () => false
+      ? companySkillsApi.list(selectedCompanyId!)
+      : companySkillsApi.list(selectedCompanyId!),
     enabled: Boolean(selectedCompanyId),
   });
 
@@ -3765,6 +3768,8 @@ export function CompanySkills() {
     ),
     staleTime: 60_000,
   });
+
+
 
   useEffect(() => {
     if (!routeResolution.skill || !routeResolution.shouldRedirect || skillsQuery.isLoading) return;

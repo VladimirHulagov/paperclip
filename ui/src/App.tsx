@@ -51,6 +51,7 @@ import { CompanyInvites } from "./pages/CompanyInvites";
 import { CompanySkills } from "./pages/CompanySkills";
 import { SkillStudio } from "./pages/SkillStudio";
 import { Secrets } from "./pages/Secrets";
+import { CompanyRoles } from "./pages/CompanyRoles";
 import { CompanyExport } from "./pages/CompanyExport";
 import { CompanyImport } from "./pages/CompanyImport";
 import { DesignGuide } from "./pages/DesignGuide";
@@ -117,6 +118,7 @@ function boardRoutes() {
       <Route path="skills/studio/:skillId" element={<SkillStudio />} />
       <Route path="skills/:skillId/studio" element={<LegacySkillStudioRedirect />} />
       <Route path="skills/*" element={<CompanySkills />} />
+      <Route path="roles" element={<CompanyRoles />} />
       <Route path="settings" element={<LegacySettingsRedirect />} />
       <Route path="settings/*" element={<LegacySettingsRedirect />} />
       <Route path="plugins/:pluginId" element={<PluginPage />} />
@@ -365,7 +367,9 @@ function CompanyRootRedirect() {
     return <div className="mx-auto max-w-xl py-10 text-sm text-muted-foreground">Loading...</div>;
   }
 
-  const targetCompany = selectedCompany ?? companies[0] ?? null;
+  const activeSelected = selectedCompany?.status !== "archived" ? selectedCompany : null;
+  const activeCompanies = companies.filter((c) => c.status !== "archived");
+  const targetCompany = activeSelected ?? activeCompanies[0] ?? null;
   if (!targetCompany) {
     if (
       shouldRedirectCompanylessRouteToOnboarding({
@@ -389,7 +393,9 @@ function UnprefixedBoardRedirect() {
     return <div className="mx-auto max-w-xl py-10 text-sm text-muted-foreground">Loading...</div>;
   }
 
-  const targetCompany = selectedCompany ?? companies[0] ?? null;
+  const activeSelected = selectedCompany?.status !== "archived" ? selectedCompany : null;
+  const activeCompanies = companies.filter((c) => c.status !== "archived");
+  const targetCompany = activeSelected ?? activeCompanies[0] ?? null;
   if (!targetCompany) {
     if (
       shouldRedirectCompanylessRouteToOnboarding({
@@ -475,6 +481,7 @@ export function App() {
           <Route path="skills/studio/:skillId" element={<UnprefixedBoardRedirect />} />
           <Route path="skills/:skillId/studio" element={<LegacySkillStudioRedirect />} />
           <Route path="skills/*" element={<UnprefixedBoardRedirect />} />
+          <Route path="roles" element={<UnprefixedBoardRedirect />} />
           <Route path="settings" element={<LegacySettingsRedirect />} />
           <Route path="settings/*" element={<LegacySettingsRedirect />} />
           <Route path="agents" element={<UnprefixedBoardRedirect />} />

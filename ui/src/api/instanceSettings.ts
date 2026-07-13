@@ -4,9 +4,13 @@ import type {
   InstanceSettings,
   IssueGraphLivenessAutoRecoveryPreview,
   PatchInstanceSettings,
+  InstanceMessagingSettings,
   PatchInstanceGeneralSettings,
   PatchInstanceExperimentalSettings,
+  WorkingHours,
+  PatchWorkingHours,
 } from "@paperclipai/shared";
+import type { MessagingSettings } from "@paperclipai/shared";
 import { api } from "./client";
 
 export const instanceSettingsApi = {
@@ -54,4 +58,12 @@ export const instanceSettingsApi = {
       "/instance/settings/experimental/issue-graph-liveness-auto-recovery/run",
       input,
     ),
+  getMessaging: () =>
+    api.get<InstanceMessagingSettings>("/instance/settings/messaging"),
+  updateMessaging: (patch: MessagingSettings) =>
+    api.patch<InstanceMessagingSettings>("/instance/settings/messaging", patch),
+  getWorkingHours: () =>
+    api.get<WorkingHours>("/instance/settings/working-hours"),
+  updateWorkingHours: (patch: PatchWorkingHours) =>
+    api.patch<WorkingHours>("/instance/settings/working-hours", patch),
 };

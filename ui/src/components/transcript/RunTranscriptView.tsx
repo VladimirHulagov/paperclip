@@ -4,6 +4,7 @@ import { MarkdownBody, type MarkdownExternalReferenceMap } from "../MarkdownBody
 import { cn, formatTokens } from "../../lib/utils";
 import { runningLabelText } from "../../lib/status-colors";
 import {
+  Brain,
   Check,
   ChevronDown,
   ChevronRight,
@@ -133,6 +134,18 @@ type TranscriptBlock =
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
+}
+
+function formatHHMMSS(ts: string): string {
+  try {
+    const d = new Date(ts);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    const ss = String(d.getSeconds()).padStart(2, "0");
+    return `${hh}:${mm}:${ss}`;
+  } catch {
+    return "";
+  }
 }
 
 function compactWhitespace(value: string): string {
@@ -677,6 +690,16 @@ function TranscriptMessageBlock({
         <div className="mb-1.5 flex items-center gap-2 text-(length:--text-micro) font-semibold uppercase tracking-(--tracking-caps) text-muted-foreground">
           <User className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
           <span>User</span>
+          {false && block.ts && (
+            <span className="font-mono text-[10px] font-normal normal-case tracking-normal text-muted-foreground/60">
+              {formatHHMMSS(block.ts)}
+            </span>
+          )}
+        </div>
+      )}
+      {isAssistant && false && block.ts && (
+        <div className="mb-1 font-mono text-[10px] text-muted-foreground/50">
+          {formatHHMMSS(block.ts)}
         </div>
       )}
       <MarkdownBody

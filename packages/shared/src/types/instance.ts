@@ -32,6 +32,8 @@ export const DEFAULT_BACKUP_RETENTION: BackupRetentionPolicy = {
  */
 export type InstanceExecutionMode = "kubernetes" | "any";
 
+export type TimeFormat = "12h" | "24h";
+
 export interface InstanceGeneralSettings {
   censorUsernameInLogs: boolean;
   keyboardShortcuts: boolean;
@@ -42,6 +44,8 @@ export interface InstanceGeneralSettings {
    * Kubernetes sandbox provider and denies local/ssh execution.
    */
   executionMode?: InstanceExecutionMode;
+  timezone: string;
+  timeFormat: TimeFormat;
 }
 
 export interface InstanceExperimentalSettings {
@@ -84,11 +88,36 @@ export interface InstanceExperimentalSettings {
   issueGraphLivenessAutoRecoveryLookbackHours: number;
 }
 
+export interface InstanceMessagingTelegramSettings {
+  enabled: boolean;
+  botToken?: string;
+  chatId?: string;
+  allowedUsers?: string;
+  defaultTimeout: number;
+}
+
+export interface InstanceMessagingSettings {
+  telegram?: InstanceMessagingTelegramSettings;
+}
+
+export interface InstanceSkillsSyncSettings {
+  repoUrl: string;
+  branch: string;
+  path: string;
+  token: string;
+  author: string;
+}
+
+export type DayOfWeek = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
 export interface InstanceSettings {
   id: string;
   defaultEnvironmentId: string | null;
   general: InstanceGeneralSettings;
   experimental: InstanceExperimentalSettings;
+  messaging: InstanceMessagingSettings;
+  skillsSync: InstanceSkillsSyncSettings;
+  workingHours: { enabled: boolean; start: string; end: string; days: DayOfWeek[] };
   createdAt: Date;
   updatedAt: Date;
 }

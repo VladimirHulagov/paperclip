@@ -47,6 +47,11 @@ export type {
   BackupRetentionPolicy,
   IssueGraphLivenessAutoRecoveryPreview,
   IssueGraphLivenessAutoRecoveryPreviewItem,
+  TimeFormat,
+  InstanceMessagingSettings,
+  InstanceMessagingTelegramSettings,
+  InstanceSkillsSyncSettings,
+  DayOfWeek,
 } from "./instance.js";
 export {
   DAILY_RETENTION_PRESETS,
@@ -178,6 +183,10 @@ export type {
   AgentSkillSnapshot,
   AgentSkillSyncRequest,
 } from "./adapter-skills.js";
+export type {
+  TeamSkill,
+  TeamSkillDetail,
+} from "./team-skill.js";
 export type {
   Agent,
   AgentAccessState,
@@ -678,3 +687,17 @@ export type {
   PluginDatabaseNamespaceMode,
   PluginDatabaseNamespaceStatus,
 } from "./plugin.js";
+export type {
+  RoleSourceType,
+  RoleSource,
+  CompanyRole,
+  CompanyRoleListItem,
+  CompanyRoleDetail,
+  CompanyRoleUsageAgent,
+  RoleSourceBrowseEntry,
+  RoleSourceBrowseResult,
+  CompanyRoleCreateRequest,
+  CompanyRoleImportRequest,
+  CompanyRoleImportResult,
+  RoleSourceCreateRequest,
+} from "./role.js";

@@ -161,6 +161,7 @@ export function Layout() {
     queryKey: queryKeys.instance.generalSettings,
     queryFn: () => instanceSettingsApi.getGeneral(),
   }).data?.keyboardShortcuts === true;
+  const generalSettingsValue = useMemo(() => ({ keyboardShortcutsEnabled }), [keyboardShortcutsEnabled]);
 
   // A secondary sidebar always collapses the app sidebar to its rail (still
   // peek-able) — a hard invariant that overrides the user pin while the route
@@ -506,7 +507,7 @@ export function Layout() {
   }, [location.key, location.pathname, location.state, navigationType]);
 
   return (
-    <GeneralSettingsProvider value={{ keyboardShortcutsEnabled }}>
+    <GeneralSettingsProvider value={generalSettingsValue}>
       <div
       className={cn(
         "bg-background text-foreground pt-(--sz-safe-top)",

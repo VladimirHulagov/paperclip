@@ -5,6 +5,7 @@ import {
   text,
   timestamp,
   jsonb,
+  boolean,
   index,
   integer,
   uniqueIndex,
@@ -47,6 +48,7 @@ export const companySkills = pgTable(
     metadata: jsonb("metadata").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    hidden: boolean("hidden").notNull().default(false),
   },
   (table) => ({
     companyKeyUniqueIdx: uniqueIndex("company_skills_company_key_idx").on(table.companyId, table.key),

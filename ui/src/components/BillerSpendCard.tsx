@@ -10,6 +10,7 @@ interface BillerSpendCardProps {
   budgetMonthlyCents: number;
   totalCompanySpendCents: number;
   providerRows: CostByProviderModel[];
+  isTokens?: boolean;
 }
 
 export function BillerSpendCard({
@@ -18,6 +19,7 @@ export function BillerSpendCard({
   budgetMonthlyCents,
   totalCompanySpendCents,
   providerRows,
+  isTokens = false,
 }: BillerSpendCardProps) {
   const providerBreakdown = useMemo(() => {
     const map = new Map<string, { provider: string; costCents: number; inputTokens: number; outputTokens: number }>();
@@ -72,7 +74,7 @@ export function BillerSpendCard({
             </CardDescription>
           </div>
           <span className="text-xl font-bold tabular-nums shrink-0">
-            {formatCents(row.costCents)}
+            {isTokens ? formatTokens(row.inputTokens + row.cachedInputTokens + row.outputTokens) : formatCents(row.costCents)}
           </span>
         </div>
       </CardHeader>
@@ -82,7 +84,7 @@ export function BillerSpendCard({
           <QuotaBar
             label="Period spend"
             percentUsed={budgetPct}
-            leftLabel={formatCents(row.costCents)}
+            leftLabel={isTokens ? formatTokens(row.inputTokens + row.cachedInputTokens + row.outputTokens) : formatCents(row.costCents)}
             rightLabel={`${Math.round(budgetPct)}% of allocation`}
           />
         )}
@@ -94,7 +96,7 @@ export function BillerSpendCard({
             ? `${row.subscriptionRunCount} subscription run${row.subscriptionRunCount === 1 ? "" : "s"}`
             : "0 subscription runs"}
           {" · "}
-          {formatCents(weekSpendCents)} this week
+          {isTokens ? `${formatTokens(weekSpendCents)} this week` : `${formatCents(weekSpendCents)} this week`}
         </div>
 
         {billingTypeBreakdown.length > 0 && (
@@ -108,7 +110,7 @@ export function BillerSpendCard({
                 {billingTypeBreakdown.map(([billingType, costCents]) => (
                   <div key={billingType} className="flex items-center justify-between gap-2 text-xs">
                     <span className="text-muted-foreground">{billingTypeDisplayName(billingType as any)}</span>
-                    <span className="font-medium tabular-nums">{formatCents(costCents)}</span>
+                    <span className="font-medium tabular-nums">{isTokens ? formatTokens(costCents) : formatCents(costCents)}</span>
                   </div>
                 ))}
               </div>
@@ -128,7 +130,7 @@ export function BillerSpendCard({
                   <div key={entry.provider} className="flex items-center justify-between gap-2 text-xs">
                     <span className="text-muted-foreground">{providerDisplayName(entry.provider)}</span>
                     <div className="text-right tabular-nums">
-                      <div className="font-medium">{formatCents(entry.costCents)}</div>
+                      <div className="font-medium">{isTokens ? formatTokens(entry.inputTokens + entry.outputTokens) : formatCents(entry.costCents)}</div>
                       <div className="text-muted-foreground">
                         {formatTokens(entry.inputTokens + entry.outputTokens)} tok
                       </div>

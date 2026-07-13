@@ -369,7 +369,52 @@ const grokLocalAdapter: ServerAdapterModule = {
 
 const hermesGatewayAdapter = createHermesGatewayServerAdapter();
 
-const hermesLocalAdapter = createHermesLocalServerAdapter();
+// hermes_local kept as the gateway-container adapter (legacy/per-agent gateway-container setup).
+// Auth injection wraps the upstream execute so PAPERCLIP_API_KEY + PAPERCLIP_RUN_ID reach the
+// gateway container and the auth-guard prompt is prepended when a custom promptTemplate exists.
+// In production the adapter package is bind-mounted to the gateway-mode implementation; the
+// distinct hermes_gateway type above remains available for the native upstream runtime.
+const upstreamHermesLocal = createHermesLocalServerAdapter();
+const hermesLocalAdapter: ServerAdapterModule = {
+  ...upstreamHermesLocal,
+  execute: async (ctx) => {
+    const authToken = (ctx as { authToken?: string }).authToken;
+    const runId = (ctx as { runId?: string }).runId;
+    if (!authToken) return upstreamHermesLocal.execute(ctx);
+    const existingConfig = ((ctx.agent.adapterConfig ?? {}) as Record<string, unknown>);
+    const existingEnv =
+      typeof existingConfig.env === "object" && existingConfig.env !== null && !Array.isArray(existingConfig.env)
+        ? (existingConfig.env as Record<string, string>)
+        : {};
+    const explicitApiKey =
+      typeof existingEnv.PAPERCLIP_API_KEY === "string" && existingEnv.PAPERCLIP_API_KEY.trim().length > 0;
+    const promptTemplate =
+      typeof existingConfig.promptTemplate === "string" && existingConfig.promptTemplate.trim().length > 0
+        ? existingConfig.promptTemplate
+        : "";
+    const authGuardPrompt = [
+      "Paperclip API safety rule:",
+      "Use Authorization: Bearer $PAPERCLIP_API_KEY on every Paperclip API request.",
+      "Use X-Paperclip-Run-ID: $PAPERCLIP_RUN_ID on every Paperclip API request that writes or mutates data, including comments and issue updates.",
+      "Never use a board, browser, or local-board session for Paperclip API writes.",
+    ].join("\n");
+    const patchedConfig: Record<string, unknown> = {
+      ...existingConfig,
+      env: {
+        ...existingEnv,
+        ...(!explicitApiKey ? { PAPERCLIP_API_KEY: authToken } : {}),
+        ...(runId ? { PAPERCLIP_RUN_ID: runId } : {}),
+      },
+    };
+    if (promptTemplate) {
+      patchedConfig.promptTemplate = `${authGuardPrompt}\n\n${promptTemplate}`;
+    }
+    return upstreamHermesLocal.execute({
+      ...ctx,
+      agent: { ...ctx.agent, adapterConfig: patchedConfig },
+    });
+  },
+};
 
 const openclawGatewayAdapter: ServerAdapterModule = {
   type: "openclaw_gateway",

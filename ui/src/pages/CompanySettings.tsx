@@ -88,6 +88,7 @@ export function CompanySettings() {
     }
   });
 
+
   const syncLogoState = (nextLogoUrl: string | null) => {
     setLogoUrl(nextLogoUrl ?? "");
     void queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
@@ -365,6 +366,7 @@ export function CompanySettings() {
           />
         </div>
       </div>
+
 
       {/* Import / Export */}
       <div className="space-y-4">

@@ -267,7 +267,10 @@ export function DraftInput({
   className?: string;
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "className">) {
   const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setDraft(value);
+  }, [value, focused]);
 
   return (
     <input
@@ -277,7 +280,9 @@ export function DraftInput({
         setDraft(e.target.value);
         if (immediate) onCommit(e.target.value);
       }}
+      onFocus={() => setFocused(true)}
       onBlur={() => {
+        setFocused(false);
         if (draft !== value) onCommit(draft);
       }}
       {...props}
@@ -302,7 +307,10 @@ export function DraftTextarea({
   minRows?: number;
 }) {
   const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setDraft(value);
+  }, [value, focused]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const rows = minRows ?? 3;
@@ -328,7 +336,9 @@ export function DraftTextarea({
         setDraft(e.target.value);
         if (immediate) onCommit(e.target.value);
       }}
+      onFocus={() => setFocused(true)}
       onBlur={() => {
+        setFocused(false);
         if (draft !== value) onCommit(draft);
       }}
       style={{ minHeight }}

@@ -60,6 +60,7 @@ export const issues = pgTable(
     monitorAttemptCount: integer("monitor_attempt_count").notNull().default(0),
     monitorNotes: text("monitor_notes"),
     monitorScheduledBy: text("monitor_scheduled_by"),
+    checklist: jsonb("checklist").$type<{ text: string; done: boolean }[] | null>(),
     executionWorkspaceId: uuid("execution_workspace_id")
       .references((): AnyPgColumn => executionWorkspaces.id, { onDelete: "set null" }),
     executionWorkspacePreference: text("execution_workspace_preference"),

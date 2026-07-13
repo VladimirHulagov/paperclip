@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { PatchInstanceGeneralSettings, BackupRetentionPolicy } from "@paperclipai/shared";
+import type { PatchInstanceGeneralSettings, BackupRetentionPolicy, TimeFormat, WorkingHours } from "@paperclipai/shared";
 import {
   DAILY_RETENTION_PRESETS,
   WEEKLY_RETENTION_PRESETS,
   MONTHLY_RETENTION_PRESETS,
   DEFAULT_BACKUP_RETENTION,
 } from "@paperclipai/shared";
-import { LogOut, SlidersHorizontal } from "lucide-react";
+import { Globe, GitBranch, Clock, LogOut, SlidersHorizontal } from "lucide-react";
 import { authApi } from "@/api/auth";
 import { healthApi } from "@/api/health";
 import { instanceSettingsApi } from "@/api/instanceSettings";
@@ -65,6 +65,23 @@ export function InstanceGeneralSettings() {
     },
   });
 
+  const workingHoursQuery = useQuery({
+    queryKey: ["instance", "workingHours"],
+    queryFn: () => instanceSettingsApi.getWorkingHours(),
+  });
+
+  const updateWorkingHoursMutation = useMutation({
+    mutationFn: (patch: Partial<WorkingHours>) => instanceSettingsApi.updateWorkingHours(patch),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["instance", "workingHours"] });
+    },
+    onError: (error) => {
+      setActionError(error instanceof Error ? error.message : "Failed to update working hours.");
+    },
+  });
+
+  const workingHours: WorkingHours = workingHoursQuery.data ?? { enabled: false, start: "09:00", end: "18:00", days: ["mon", "tue", "wed", "thu", "fri"] };
+
   if (generalQuery.isLoading) {
     return <div className="text-sm text-muted-foreground">Loading general settings...</div>;
   }
@@ -83,6 +100,8 @@ export function InstanceGeneralSettings() {
   const keyboardShortcuts = generalQuery.data?.keyboardShortcuts === true;
   const feedbackDataSharingPreference = generalQuery.data?.feedbackDataSharingPreference ?? "prompt";
   const backupRetention: BackupRetentionPolicy = generalQuery.data?.backupRetention ?? DEFAULT_BACKUP_RETENTION;
+  const currentTimezone = generalQuery.data?.timezone ?? "UTC";
+  const currentTimeFormat: TimeFormat = generalQuery.data?.timeFormat ?? "24h";
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -350,6 +369,182 @@ export function InstanceGeneralSettings() {
           </p>
         </div>
       </Card>
+
+      <section className="rounded-xl border border-border bg-card p-5">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">Regional</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Timezone and time format apply to all timestamps across the instance.
+          </p>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label htmlFor="timezone-select" className="text-sm font-medium">
+                Timezone
+              </label>
+              <select
+                id="timezone-select"
+                value={currentTimezone}
+                disabled={updateGeneralMutation.isPending}
+                onChange={(e) => updateGeneralMutation.mutate({ timezone: e.target.value })}
+                className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {([
+                  ["UTC", "UTC+0"],
+                  ["US/Eastern", "UTC-5"],
+                  ["US/Central", "UTC-6"],
+                  ["US/Mountain", "UTC-7"],
+                  ["US/Pacific", "UTC-8"],
+                  ["Canada/Atlantic", "UTC-4"],
+                  ["America/Sao_Paulo", "UTC-3"],
+                  ["Europe/London", "UTC+0"],
+                  ["Europe/Paris", "UTC+1"],
+                  ["Europe/Berlin", "UTC+1"],
+                  ["Europe/Moscow", "UTC+3"],
+                  ["Europe/Istanbul", "UTC+3"],
+                  ["Asia/Dubai", "UTC+4"],
+                  ["Asia/Kolkata", "UTC+5:30"],
+                  ["Asia/Bangkok", "UTC+7"],
+                  ["Asia/Shanghai", "UTC+8"],
+                  ["Asia/Tokyo", "UTC+9"],
+                  ["Asia/Seoul", "UTC+9"],
+                  ["Australia/Sydney", "UTC+11"],
+                  ["Pacific/Auckland", "UTC+12"],
+                ] as const).map(([tz, offset]) => (
+                  <option key={tz} value={tz}>{tz.replace(/_/g, " ")} ({offset})</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-sm font-medium">Time format</span>
+              <div className="flex gap-2">
+                {([
+                  { value: "24h" as TimeFormat, label: "24-hour", example: "15:42" },
+                  { value: "12h" as TimeFormat, label: "12-hour", example: "3:42 PM" },
+                ]).map((opt) => {
+                  const active = currentTimeFormat === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={updateGeneralMutation.isPending}
+                      className={cn(
+                        "rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                        active
+                          ? "border-foreground bg-accent text-foreground"
+                          : "border-border bg-background hover:bg-accent/50",
+                      )}
+                      onClick={() => updateGeneralMutation.mutate({ timeFormat: opt.value })}
+                    >
+                      <div className="text-sm font-medium">{opt.label}</div>
+                      <div className="text-xs text-muted-foreground">{opt.example}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-5">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">Working Hours</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Suppress heartbeat triggers outside working hours. Uses timezone from Regional settings above.
+          </p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Enable working hours</span>
+              <ToggleSwitch
+                checked={workingHours.enabled}
+                onCheckedChange={() => updateWorkingHoursMutation.mutate({ enabled: !workingHours.enabled })}
+                disabled={updateWorkingHoursMutation.isPending}
+                aria-label="Toggle working hours"
+              />
+            </div>
+            {workingHours.enabled && (
+              <>
+                <div className="flex items-center gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Start</label>
+                    <input
+                      type="time"
+                      value={workingHours.start}
+                      disabled={updateWorkingHoursMutation.isPending}
+                      onChange={(e) => updateWorkingHoursMutation.mutate({ start: e.target.value })}
+                      className="rounded-md border border-border bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                  </div>
+                  <span className="text-sm text-muted-foreground pt-5">to</span>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">End</label>
+                    <input
+                      type="time"
+                      value={workingHours.end}
+                      disabled={updateWorkingHoursMutation.isPending}
+                      onChange={(e) => updateWorkingHoursMutation.mutate({ end: e.target.value })}
+                      className="rounded-md border border-border bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <span className="text-sm font-medium">Working days</span>
+                  <div className="flex gap-1.5">
+                    {(["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const).map((day) => {
+                      const active = workingHours.days?.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          disabled={updateWorkingHoursMutation.isPending}
+                          className={cn(
+                            "rounded-md border px-2.5 py-1.5 text-xs font-medium capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                            active
+                              ? "border-foreground bg-accent text-foreground"
+                              : "border-border bg-background hover:bg-accent/50",
+                          )}
+                          onClick={() => {
+                            const current = workingHours.days ?? ["mon", "tue", "wed", "thu", "fri"];
+                            const next = active
+                              ? current.filter((d: string) => d !== day)
+                              : [...current, day];
+                            updateWorkingHoursMutation.mutate({ days: next });
+                          }}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => updateWorkingHoursMutation.mutate({ start: "09:00", end: "18:00", days: ["mon", "tue", "wed", "thu", "fri"] })}
+                  >
+                    Mon-Fri 9:00–18:00
+                  </button>
+                  <span className="text-xs text-muted-foreground">|</span>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => updateWorkingHoursMutation.mutate({ start: "10:00", end: "19:00", days: ["mon", "tue", "wed", "thu", "fri"] })}
+                  >
+                    Mon-Fri 10:00–19:00
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
 
       <Card className="block p-5">
         <div className="flex items-start justify-between gap-4">

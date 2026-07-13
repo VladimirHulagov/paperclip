@@ -93,7 +93,7 @@ import { DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX } from "@paperclipai/a
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
 import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
 import { DEFAULT_OPENCODE_LOCAL_MODEL } from "@paperclipai/adapter-opencode-local";
-import { requireOpenCodeModelId } from "@paperclipai/adapter-opencode-local/server";
+import { requireOpenCodeModelId, ensureOpenCodeModelConfiguredAndAvailable } from "@paperclipai/adapter-opencode-local/server";
 import {
   loadDefaultAgentInstructionsBundle,
   resolveDefaultAgentInstructionsBundleRole,
@@ -1365,8 +1365,14 @@ export function agentRoutes(
       return (updated as T | null) ?? { ...agent, adapterConfig: nextAdapterConfig };
     }
 
-    const files = input?.files
-      ?? await loadDefaultAgentInstructionsBundle(resolveDefaultAgentInstructionsBundleRole(agent.role));
+    const promptTemplate = typeof adapterConfig.promptTemplate === "string"
+      ? adapterConfig.promptTemplate
+      : "";
+    const bundleRole = resolveDefaultAgentInstructionsBundleRole(agent.role);
+    const defaultBundle = await loadDefaultAgentInstructionsBundle(bundleRole);
+    const files = promptTemplate.trim().length === 0
+      ? defaultBundle
+      : { ...defaultBundle, "AGENTS.md": promptTemplate };
     const materialized = await instructions.materializeManagedBundle(
       agent,
       files,
@@ -2361,6 +2367,7 @@ export function agentRoutes(
     const {
       desiredSkills: requestedDesiredSkills,
       instructionsBundle,
+      assignedRole: requestedAssignedRole,
       sourceIssueId: _sourceIssueId,
       sourceIssueIds: _sourceIssueIds,
       ...hireInput
@@ -2398,6 +2405,24 @@ export function agentRoutes(
       companyId,
       hireInput.adapterType,
       normalizeNewAgentRuntimeConfig(hireInput.runtimeConfig),
+      desiredSkillAssignment.adapterConfig,
+    );
+    if (typeof requestedAssignedRole === "string" && requestedAssignedRole) {
+      const { companyRoleService } = await import("../services/company-roles.js");
+      const roleSvc = companyRoleService(db);
+      const resolvedKey = await roleSvc.resolveRoleKey(companyId, requestedAssignedRole);
+      if (resolvedKey) {
+        normalizedAdapterConfig.assignedRole = resolvedKey;
+        if (!normalizedAdapterConfig.promptTemplate) {
+          const role = await roleSvc.getByKey(companyId, resolvedKey);
+          if (role) {
+            normalizedAdapterConfig.promptTemplate = role.markdown;
+          }
+        }
+      }
+    }
+    await assertAdapterConfigConstraints(
+      hireInput.adapterType,
       normalizedAdapterConfig,
     );
     const normalizedHireInput = {
@@ -2556,6 +2581,7 @@ export function agentRoutes(
     const {
       desiredSkills: requestedDesiredSkills,
       instructionsBundle,
+      assignedRole: requestedAssignedRole,
       ...createInput
     } = req.body;
     createInput.adapterType = assertKnownAdapterType(createInput.adapterType);
@@ -2591,6 +2617,24 @@ export function agentRoutes(
       companyId,
       createInput.adapterType,
       normalizeNewAgentRuntimeConfig(createInput.runtimeConfig),
+      desiredSkillAssignment.adapterConfig,
+    );
+    if (typeof requestedAssignedRole === "string" && requestedAssignedRole) {
+      const { companyRoleService } = await import("../services/company-roles.js");
+      const roleSvc = companyRoleService(db);
+      const resolvedKey = await roleSvc.resolveRoleKey(companyId, requestedAssignedRole);
+      if (resolvedKey) {
+        normalizedAdapterConfig.assignedRole = resolvedKey;
+        if (!normalizedAdapterConfig.promptTemplate) {
+          const role = await roleSvc.getByKey(companyId, resolvedKey);
+          if (role) {
+            normalizedAdapterConfig.promptTemplate = role.markdown;
+          }
+        }
+      }
+    }
+    await assertAdapterConfigConstraints(
+      createInput.adapterType,
       normalizedAdapterConfig,
     );
     await assertAgentEnvironmentSelection(companyId, createInput.adapterType, createInput.defaultEnvironmentId);
@@ -2639,6 +2683,11 @@ export function agentRoutes(
     await builtInAgentService(db).ensureCompanyDefaultAgentGrants(companyId);
 
     if (agent.budgetMonthlyCents > 0) {
+      const companyRow = await db
+        .select({ budgetMetric: companies.budgetMetric })
+        .from(companies)
+        .where(eq(companies.id, companyId))
+        .then((rows) => rows[0]);
       await budgets.upsertPolicy(
         companyId,
         {
@@ -2646,6 +2695,7 @@ export function agentRoutes(
           scopeId: agent.id,
           amount: agent.budgetMonthlyCents,
           windowKind: "calendar_month_utc",
+          metric: (companyRow as any)?.budgetMetric ?? "billed_cents",
         },
         actor.actorType === "user" ? actor.actorId : null,
       );

@@ -5,6 +5,9 @@ import {
   patchInstanceSettingsSchema,
   patchInstanceExperimentalSettingsSchema,
   patchInstanceGeneralSettingsSchema,
+  patchMessagingSettingsSchema,
+  patchSkillsSyncSettingsSchema,
+  patchWorkingHoursSchema,
 } from "@paperclipai/shared";
 import { forbidden } from "../errors.js";
 import { validate } from "../middleware/validate.js";
@@ -168,6 +171,41 @@ export function instanceSettingsRoutes(db: Db) {
         force: true,
         lookbackHours: req.body.lookbackHours,
       });
+      await logActivity(db, {
+        companyId: "default",
+        actorType: actor.actorType,
+        actorId: actor.actorId,
+        agentId: actor.agentId,
+        runId: actor.runId,
+        action: "instance.settings.issue_graph_liveness_auto_recovery_run",
+        entityType: "instance_settings",
+        entityId: "default",
+        details: {
+          lookbackHours: result.lookbackHours,
+          escalationsCreated: result.escalationsCreated,
+          existingEscalations: result.existingEscalations,
+          skippedOutsideLookback: result.skippedOutsideLookback,
+          escalationIssueIds: result.escalationIssueIds,
+        },
+      });
+      res.json(result);
+    },
+  );
+
+  router.get("/instance/settings/messaging", async (req, res) => {
+    if (req.actor.type !== "board") {
+      throw forbidden("Board access required");
+    }
+    res.json(await svc.getMessaging());
+  });
+
+  router.patch(
+    "/instance/settings/messaging",
+    validate(patchMessagingSettingsSchema),
+    async (req, res) => {
+      assertCanManageInstanceSettings(req);
+      const updated = await svc.updateMessaging(req.body);
+      const actor = getActorInfo(req);
       const companyIds = await svc.listCompanyIds();
       await Promise.all(
         companyIds.map((companyId) =>
@@ -177,22 +215,108 @@ export function instanceSettingsRoutes(db: Db) {
             actorId: actor.actorId,
             agentId: actor.agentId,
             runId: actor.runId,
-            action: "instance.settings.issue_graph_liveness_auto_recovery_run",
+            action: "instance.settings.messaging_updated",
             entityType: "instance_settings",
-            entityId: "default",
+            entityId: updated.id,
             details: {
-              lookbackHours: result.lookbackHours,
-              escalationsCreated: result.escalationsCreated,
-              existingEscalations: result.existingEscalations,
-              skippedOutsideLookback: result.skippedOutsideLookback,
-              escalationIssueIds: result.escalationIssueIds,
+              messaging: updated.messaging,
+              changedKeys: Object.keys(req.body).sort(),
             },
           }),
         ),
       );
-      res.json(result);
+      res.json(updated.messaging);
     },
   );
+
+  router.get("/instance/settings/skills-sync", async (req, res) => {
+    if (req.actor.type !== "board") {
+      throw forbidden("Board access required");
+    }
+    const settings = await svc.getSkillsSync();
+    res.json({
+      ...settings,
+      token: settings.token ? "••••••••" : "",
+    });
+  });
+
+  router.patch(
+    "/instance/settings/skills-sync",
+    validate(patchSkillsSyncSettingsSchema),
+    async (req, res) => {
+      assertCanManageInstanceSettings(req);
+      const updated = await svc.updateSkillsSync(req.body);
+      const actor = getActorInfo(req);
+      const companyIds = await svc.listCompanyIds();
+      await Promise.all(
+        companyIds.map((companyId) =>
+          logActivity(db, {
+            companyId,
+            actorType: actor.actorType,
+            actorId: actor.actorId,
+            agentId: actor.agentId,
+            runId: actor.runId,
+            action: "instance.settings.skills_sync_updated",
+            entityType: "instance_settings",
+            entityId: updated.id,
+            details: {
+              skillsSync: {
+                ...updated.skillsSync,
+                token: updated.skillsSync.token ? "***" : "",
+              },
+              changedKeys: Object.keys(req.body).sort(),
+            },
+          }),
+        ),
+      );
+      res.json({
+        ...updated.skillsSync,
+        token: updated.skillsSync.token ? "••••••••" : "",
+      });
+    },
+  );
+
+  router.get("/instance/settings/working-hours", async (req, res) => {
+    if (req.actor.type !== "board") {
+      throw forbidden("Board access required");
+    }
+    res.json(await svc.getWorkingHours());
+  });
+
+  router.patch(
+    "/instance/settings/working-hours",
+    validate(patchWorkingHoursSchema),
+    async (req, res) => {
+      assertCanManageInstanceSettings(req);
+      const updated = await svc.updateWorkingHours(req.body);
+      const actor = getActorInfo(req);
+      const companyIds = await svc.listCompanyIds();
+      await Promise.all(
+        companyIds.map((companyId) =>
+          logActivity(db, {
+            companyId,
+            actorType: actor.actorType,
+            actorId: actor.actorId,
+            agentId: actor.agentId,
+            runId: actor.runId,
+            action: "instance.settings.working_hours_updated",
+            entityType: "instance_settings",
+            entityId: updated.id,
+            details: {
+              workingHours: updated.workingHours,
+              changedKeys: Object.keys(req.body).sort(),
+            },
+          }),
+        ),
+      );
+      res.json(updated.workingHours);
+    },
+  );
+
+  router.post("/instance/settings/skills-sync/trigger", async (req, res) => {
+    assertCanManageInstanceSettings(req);
+    res.json({ triggered: true, message: "Sync will run on next orchestrator cycle." });
+  });
 
   return router;
 }

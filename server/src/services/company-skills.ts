@@ -403,6 +403,7 @@ function selectCompanySkillColumns() {
     metadata: companySkills.metadata,
     createdAt: companySkills.createdAt,
     updatedAt: companySkills.updatedAt,
+    hidden: companySkills.hidden,
   };
 }
 

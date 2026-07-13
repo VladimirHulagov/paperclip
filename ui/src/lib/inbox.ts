@@ -1231,6 +1231,7 @@ export function computeInboxBadgeData({
   dismissedAlerts,
   dismissedAtByKey,
   currentUserId,
+  terminatedAgentIds,
 }: {
   approvals: Approval[];
   joinRequests: JoinRequest[];
@@ -1240,6 +1241,7 @@ export function computeInboxBadgeData({
   dismissedAlerts: Set<string>;
   dismissedAtByKey: ReadonlyMap<string, number>;
   currentUserId?: string | null;
+  terminatedAgentIds?: Set<string>;
 }): InboxBadgeData {
   const actionableApprovals = approvals.filter(
     (approval) =>
@@ -1248,7 +1250,7 @@ export function computeInboxBadgeData({
       !isInboxEntityDismissed(dismissedAtByKey, `approval:${approval.id}`, approval.updatedAt),
   ).length;
   const failedRuns = getLatestFailedRunsByAgent(heartbeatRuns).filter(
-    (run) => !isInboxEntityDismissed(dismissedAtByKey, `run:${run.id}`, run.createdAt),
+    (run) => !isInboxEntityDismissed(dismissedAtByKey, `run:${run.id}`, run.createdAt) && !(terminatedAgentIds ?? new Set()).has(run.agentId),
   ).length;
   const visibleJoinRequests = joinRequests.filter(
     (jr) => !isInboxEntityDismissed(dismissedAtByKey, `join:${jr.id}`, jr.updatedAt ?? jr.createdAt),

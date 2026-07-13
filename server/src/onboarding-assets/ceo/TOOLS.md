@@ -1,3 +1,3 @@
-# Tools
+# Инструменты
 
-(Your tools will go here. Add notes about them as you acquire and use them.)
+Инструменты будут добавлены по мере работы. Делай заметки о них здесь.
