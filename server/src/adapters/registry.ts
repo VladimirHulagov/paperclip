@@ -9,6 +9,7 @@ import {
   buildSandboxNpmInstallCommand,
   getAdapterSessionManagement,
 } from "@paperclipai/adapter-utils";
+import { readFileSync, statSync } from "node:fs";
 import {
   execute as claudeExecute,
   listClaudeSkills,
@@ -367,54 +368,44 @@ const grokLocalAdapter: ServerAdapterModule = {
   agentConfigurationDoc: grokAgentConfigurationDoc,
 };
 
-const hermesGatewayAdapter = createHermesGatewayServerAdapter();
-
-// hermes_local kept as the gateway-container adapter (legacy/per-agent gateway-container setup).
-// Auth injection wraps the upstream execute so PAPERCLIP_API_KEY + PAPERCLIP_RUN_ID reach the
-// gateway container and the auth-guard prompt is prepended when a custom promptTemplate exists.
-// In production the adapter package is bind-mounted to the gateway-mode implementation; the
-// distinct hermes_gateway type above remains available for the native upstream runtime.
-const upstreamHermesLocal = createHermesLocalServerAdapter();
-const hermesLocalAdapter: ServerAdapterModule = {
-  ...upstreamHermesLocal,
-  execute: async (ctx) => {
-    const authToken = (ctx as { authToken?: string }).authToken;
-    const runId = (ctx as { runId?: string }).runId;
-    if (!authToken) return upstreamHermesLocal.execute(ctx);
-    const existingConfig = ((ctx.agent.adapterConfig ?? {}) as Record<string, unknown>);
-    const existingEnv =
-      typeof existingConfig.env === "object" && existingConfig.env !== null && !Array.isArray(existingConfig.env)
-        ? (existingConfig.env as Record<string, string>)
-        : {};
-    const explicitApiKey =
-      typeof existingEnv.PAPERCLIP_API_KEY === "string" && existingEnv.PAPERCLIP_API_KEY.trim().length > 0;
-    const promptTemplate =
-      typeof existingConfig.promptTemplate === "string" && existingConfig.promptTemplate.trim().length > 0
-        ? existingConfig.promptTemplate
-        : "";
-    const authGuardPrompt = [
-      "Paperclip API safety rule:",
-      "Use Authorization: Bearer $PAPERCLIP_API_KEY on every Paperclip API request.",
-      "Use X-Paperclip-Run-ID: $PAPERCLIP_RUN_ID on every Paperclip API request that writes or mutates data, including comments and issue updates.",
-      "Never use a board, browser, or local-board session for Paperclip API writes.",
-    ].join("\n");
-    const patchedConfig: Record<string, unknown> = {
-      ...existingConfig,
-      env: {
-        ...existingEnv,
-        ...(!explicitApiKey ? { PAPERCLIP_API_KEY: authToken } : {}),
-        ...(runId ? { PAPERCLIP_RUN_ID: runId } : {}),
-      },
-    };
-    if (promptTemplate) {
-      patchedConfig.promptTemplate = `${authGuardPrompt}\n\n${promptTemplate}`;
+// hermes_gateway bridges Paperclip to the per-agent hermes-gateway container processes.
+// Upstream's gateway adapter reads apiBaseUrl + apiKey from ctx.config, but our gateway port
+// is per-agent (from the shared ports.json volume). This override resolves the agent's port
+// and injects apiBaseUrl (http://hermes-gateway:<port>) + apiKey (HERMES_API_SERVER_KEY)
+// before delegating to the upstream gateway execute. The container validates the Bearer key
+// against its own API_SERVER_KEY and exposes POST /v1/runs + GET /v1/runs/{id}/events (SSE),
+// which upstream's execute consumes; status/stop polls are tolerated (404-swallowed).
+const GATEWAY_PORTS_PATH = process.env.GATEWAY_PORTS_PATH ?? "/run/gateway-ports/ports.json";
+const GATEWAY_HOST = process.env.HERMES_GATEWAY_HOST ?? "hermes-gateway";
+let gatewayPortsCache: { data: Record<string, number>; mtimeMs: number } | null = null;
+function resolveGatewayPort(agentId: string): number | null {
+  try {
+    const stats = statSync(GATEWAY_PORTS_PATH);
+    if (!gatewayPortsCache || gatewayPortsCache.mtimeMs !== stats.mtimeMs) {
+      gatewayPortsCache = { data: JSON.parse(readFileSync(GATEWAY_PORTS_PATH, "utf8")), mtimeMs: stats.mtimeMs };
     }
-    return upstreamHermesLocal.execute({
-      ...ctx,
-      agent: { ...ctx.agent, adapterConfig: patchedConfig },
-    });
+    const port = gatewayPortsCache.data[agentId];
+    return typeof port === "number" ? port : null;
+  } catch {
+    return null;
+  }
+}
+
+const upstreamHermesGateway = createHermesGatewayServerAdapter();
+const hermesGatewayAdapter: ServerAdapterModule = {
+  ...upstreamHermesGateway,
+  execute: async (ctx) => {
+    const port = resolveGatewayPort(ctx.agent.id);
+    const apiKey = process.env.HERMES_API_SERVER_KEY ?? "";
+    const apiBaseUrl = port ? `http://${GATEWAY_HOST}:${port}` : "";
+    const patchedConfig = { ...ctx.config, apiBaseUrl, apiKey };
+    return upstreamHermesGateway.execute({ ...ctx, config: patchedConfig });
   },
 };
+
+// hermes_local is the upstream native runtime (spawns `hermes chat` CLI as a child process),
+// available for agents that run Hermes directly on the Paperclip host without the gateway container.
+const hermesLocalAdapter = createHermesLocalServerAdapter();
 
 const openclawGatewayAdapter: ServerAdapterModule = {
   type: "openclaw_gateway",
