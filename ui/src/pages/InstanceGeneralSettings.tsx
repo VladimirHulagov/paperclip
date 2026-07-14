@@ -25,6 +25,8 @@ export function InstanceGeneralSettings() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [skillsSync, setSkillsSync] = useState({ repoUrl: "", branch: "main", path: "skills/", token: "", author: "Orchestrator <orchestrator@hermes>" });
+  const [skillsSyncSaved, setSkillsSyncSaved] = useState(false);
 
   const signOutMutation = useMutation({
     mutationFn: () => authApi.signOut(),
@@ -42,7 +44,19 @@ export function InstanceGeneralSettings() {
       { label: "Instance settings" },
       { label: "General" },
     ]);
+    fetch("/api/instance/settings/skills-sync")
+      .then((r) => r.json())
+      .then((data) => setSkillsSync((prev) => ({ ...prev, ...data })))
+      .catch(() => {});
   }, [setBreadcrumbs]);
+
+  const saveSkillsSync = async () => {
+    const body = { ...skillsSync };
+    if (body.token === "••••••••") delete (body as Record<string, unknown>).token;
+    await fetch("/api/instance/settings/skills-sync", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    setSkillsSyncSaved(true);
+    setTimeout(() => setSkillsSyncSaved(false), 2000);
+  };
 
   const generalQuery = useQuery({
     queryKey: queryKeys.instance.generalSettings,
@@ -543,6 +557,39 @@ export function InstanceGeneralSettings() {
               </>
             )}
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-5">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">Skill Repository</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">Git repository for bidirectional skill synchronization (Forgejo).</p>
+          <div className="space-y-2">
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">Repository URL</span>
+              <input className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm" value={skillsSync.repoUrl} onChange={(e) => setSkillsSync({ ...skillsSync, repoUrl: e.target.value })} placeholder="https://git.collaborationism.tech/skills.git" />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">Branch</span>
+              <input className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm" value={skillsSync.branch} onChange={(e) => setSkillsSync({ ...skillsSync, branch: e.target.value })} />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">Sync path</span>
+              <input className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm" value={skillsSync.path} onChange={(e) => setSkillsSync({ ...skillsSync, path: e.target.value })} />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">Token (leave as-is to keep)</span>
+              <input className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm font-mono" type="password" value={skillsSync.token} onChange={(e) => setSkillsSync({ ...skillsSync, token: e.target.value })} placeholder="••••••••" />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">Git author</span>
+              <input className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm" value={skillsSync.author} onChange={(e) => setSkillsSync({ ...skillsSync, author: e.target.value })} />
+            </label>
+          </div>
+          <Button size="sm" onClick={() => saveSkillsSync()}>{skillsSyncSaved ? "Saved!" : "Save"}</Button>
         </div>
       </section>
 
