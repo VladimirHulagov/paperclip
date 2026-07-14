@@ -88,6 +88,14 @@ export function CompanySettings() {
     }
   });
 
+  const budgetMetricMutation = useMutation({
+    mutationFn: (metric: string) =>
+      companiesApi.update(selectedCompanyId!, { budgetMetric: metric as "billed_cents" | "total_tokens" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.companies.detail(selectedCompanyId!) });
+    },
+  });
+
 
   const syncLogoState = (nextLogoUrl: string | null) => {
     setLogoUrl(nextLogoUrl ?? "");
@@ -367,6 +375,39 @@ export function CompanySettings() {
         </div>
       </div>
 
+
+      {/* Budget Tracking */}
+      <div className="space-y-4">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Budget Tracking
+        </div>
+        <div className="rounded-md border border-border px-4 py-3">
+          <div className="text-sm font-medium">Track budget by</div>
+          <div className="mt-2 flex gap-2">
+            <Button
+              size="sm"
+              variant={selectedCompany.budgetMetric === "billed_cents" || !selectedCompany.budgetMetric ? "default" : "outline"}
+              onClick={() => budgetMetricMutation.mutate("billed_cents")}
+              disabled={budgetMetricMutation.isPending}
+            >
+              Dollars ($)
+            </Button>
+            <Button
+              size="sm"
+              variant={selectedCompany.budgetMetric === "total_tokens" ? "default" : "outline"}
+              onClick={() => budgetMetricMutation.mutate("total_tokens")}
+              disabled={budgetMetricMutation.isPending}
+            >
+              Tokens
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {selectedCompany.budgetMetric === "total_tokens"
+              ? "Budgets are tracked in total tokens (input + output). Useful for subscription plans."
+              : "Budgets are tracked in US dollars based on provider billing."}
+          </p>
+        </div>
+      </div>
 
       {/* Import / Export */}
       <div className="space-y-4">
