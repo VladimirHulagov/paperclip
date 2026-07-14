@@ -2796,6 +2796,27 @@ export function PromptsTab({
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                title="Download this file"
+                onClick={() => {
+                  const slug = (agent.name || "agent").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "agent";
+                  const blob = new Blob([displayValue], { type: "text/markdown;charset=utf-8" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `${slug}-${selectedOrEntryFile}`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                <FileDown className="h-3.5 w-3.5 mr-1.5" />
+                Export as file
+              </Button>
               {!fileLoading && (
                 <CopyText
                   text={displayValue}

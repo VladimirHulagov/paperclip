@@ -394,6 +394,7 @@ function resolveGatewayPort(agentId: string): number | null {
 const upstreamHermesGateway = createHermesGatewayServerAdapter();
 const hermesGatewayAdapter: ServerAdapterModule = {
   ...upstreamHermesGateway,
+  supportsInstructionsBundle: true,
   execute: async (ctx) => {
     const port = resolveGatewayPort(ctx.agent.id);
     const apiKey = process.env.HERMES_API_SERVER_KEY ?? "";
