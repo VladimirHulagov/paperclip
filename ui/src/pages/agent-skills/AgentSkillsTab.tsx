@@ -157,7 +157,7 @@ export function AgentSkillsTab({ agent, companyId }: { agent: Agent; companyId?:
           color: skill.color,
         },
         summary: resolveSkillSummaryText(skill, { fallbackKey: true }),
-        chip: skill.categories[0] ?? null,
+        chip: skill.categories?.[0] ?? null,
         sourceMeta: buildAgentSkillSourceMeta(skill),
         linkTo: `/skills/${skill.id}`,
         // search haystack (mirrors the store's discoveryMatchesSearch fields)

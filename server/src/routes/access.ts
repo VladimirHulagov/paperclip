@@ -3233,7 +3233,8 @@ export function accessRoutes(
     });
   });
 
-  router.get("/skills/:skillName", (req, res) => {
+  router.get("/skills/:skillName", (req, res, next) => {
+    if (req.params.skillName === "catalog") return next();
     assertAuthenticated(req);
     const skillName = (req.params.skillName as string).trim().toLowerCase();
     const markdown = readSkillMarkdown(skillName);
