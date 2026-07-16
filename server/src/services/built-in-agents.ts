@@ -256,7 +256,7 @@ const DEFINITIONS = validateBuiltInAgentDefinitions([
     defaultInstructions:
       "You are Paperclip's built-in Briefs agent. Produce concise, sourced operational briefs that help the board understand current company work, risks, and next actions.",
     defaultRole: "general",
-    allowedAdapterTypes: ["codex_local", "claude_local", "gemini_local", "opencode_local", "process"],
+    allowedAdapterTypes: ["hermes_gateway", "hermes_local", "codex_local", "claude_local", "gemini_local", "opencode_local", "process"],
     defaultBudgetMonthlyCents: 0,
   },
   {
@@ -267,7 +267,7 @@ const DEFINITIONS = validateBuiltInAgentDefinitions([
     defaultInstructions:
       "You are Paperclip's built-in Learning agent. Extract durable lessons from completed work, preserve useful patterns, and keep learning artifacts grounded in source context.",
     defaultRole: "general",
-    allowedAdapterTypes: ["codex_local", "claude_local", "gemini_local", "opencode_local", "process"],
+    allowedAdapterTypes: ["hermes_gateway", "hermes_local", "codex_local", "claude_local", "gemini_local", "opencode_local", "process"],
     defaultBudgetMonthlyCents: 0,
   },
   {
